@@ -3,6 +3,7 @@ import { debug } from "../helpers/logger";
 import { isDevelopment, pluginVersion } from "../helpers/environment";
 import { getTileElements } from "../helpers/Z-Coords";
 import { litterCount, totalLitterCount } from "../helpers/litterStats";
+import { LITTER_FONT } from "../helpers/litterFont";
 
 // Settings for the window
 export const windowId = "litter-editor-window";
@@ -50,6 +51,20 @@ let trackDistSelectedRideIdx: number = 0;
 let trackDistCount: number = 4;
 let trackDistLitterType: LitterType = "vomit";
 let trackDistZOffset: number = 0;
+
+// Diagonal Text tab widget names
+const diagTextButtonSetText: string  = "litter-editor-diag-text-button-set-text";
+const diagTextStringLabel: string    = "litter-editor-diag-text-string-label";
+const diagTextLitterDropdown: string = "litter-editor-diag-text-litter-dropdown";
+const diagTextButtonPlace: string    = "litter-editor-diag-text-button-place";
+const diagTextToolId: string         = "litter-editor-diag-text-tool";
+
+// Column offsets (within a 32-unit tile) for each of the 5 font columns
+const DIAG_TEXT_COL_OFFSETS: number[] = [2, 8, 16, 22, 28];
+
+// Diagonal Text tab state
+let diagTextString: string = "";
+let diagTextLitterType: LitterType = "vomit";
 
 export class LitterEditorWindow {
 	/**
@@ -743,6 +758,110 @@ export class LitterEditorWindow {
 					},
 					{
 						image: {
+							frameBase: 5199, // letter/text icon
+							frameCount: 8,
+							frameDuration: 4,
+						},
+						widgets: [
+							// Footer label — matches pattern on all other tabs
+							<LabelWidget>{
+								type: "label",
+								x: 0,
+								y: 232,
+								width: 260,
+								height: widgetLineHeight,
+								textAlign: "centred",
+								text: "github.com/EnoxRCT/OpenRCT2-LitterEditor",
+								tooltip: "Powered by Manticore_007 and Basssiiie",
+								isDisabled: true,
+							},
+							// Groupbox
+							<GroupBoxWidget>{
+								type: "groupbox",
+								x: 10,
+								y: 55,
+								width: 240,
+								height: 170,
+								text: "Diagonal Text",
+							},
+							// Row 1: Text label + "Set Text..." button
+							<LabelWidget>{
+								type: "label",
+								x: 20,
+								y: 72,
+								width: 65,
+								height: widgetLineHeight,
+								text: "Text",
+							},
+							<ButtonDesc>{
+								name: diagTextButtonSetText,
+								type: "button",
+								x: 90,
+								y: 70,
+								width: 90,
+								height: widgetLineHeight + 2,
+								text: "Set Text...",
+								onClick: () => onDiagTextSetText(),
+							},
+							// Row 2: current text display label
+							<LabelWidget>{
+								name: diagTextStringLabel,
+								type: "label",
+								x: 20,
+								y: 92,
+								width: 220,
+								height: widgetLineHeight,
+								text: "(none)",
+							},
+							// Row 3: Litter type label + dropdown
+							<LabelWidget>{
+								type: "label",
+								x: 20,
+								y: 114,
+								width: 65,
+								height: widgetLineHeight,
+								text: "Litter Type",
+							},
+							<DropdownDesc>{
+								name: diagTextLitterDropdown,
+								type: "dropdown",
+								x: 90,
+								y: 114,
+								width: 150,
+								height: widgetLineHeight,
+								items: [
+									"Vomit",              // 0
+									"Vomit Alt",          // 1
+									"Empty Can",          // 2
+									"Rubbish",            // 3
+									"Burger Box",         // 4
+									"Empty Cup",          // 5
+									"Empty Box",          // 6
+									"Empty Bottle",       // 7
+									"Empty Bowl Red",     // 8
+									"Empty Drink Carton", // 9
+									"Empty Juice Cup",    // 10
+									"Empty Bowl Blue"     // 11
+								],
+								selectedIndex: 0,
+								onChange: (index: number) => onDiagTextLitterTypeChanged(index),
+							},
+							// Row 4: Place Text button
+							<ButtonDesc>{
+								name: diagTextButtonPlace,
+								type: "button",
+								x: 20,
+								y: 142,
+								width: 220,
+								height: 25,
+								text: "Place Text",
+								isPressed: false,
+								onClick: () => onDiagTextPlace(),
+							},
+						],
+					},
+					{
+						image: {
 							frameBase: 5367, //info
 							frameCount: 8,
 							frameDuration: 4,
@@ -1065,6 +1184,124 @@ function distributeTrackLitter(): void {
 	}
 
 	debug("Track litter distribution complete. Placed: " + placedCount);
+}
+// Diagonal Text tab functions
+
+function onDiagTextSetText(): void {
+	ui.showTextInput({
+		title: "Enter Text",
+		description: "Enter the text to write diagonally (a\u2013z and space only):",
+		initialValue: diagTextString,
+		maxLength: 64,
+		callback: (value: string) => {
+			diagTextString = value.toLowerCase();
+			const w = ui.getWindow(windowId);
+			if (w) {
+				w.findWidget<LabelWidget>(diagTextStringLabel).text = diagTextString || "(none)";
+			}
+		}
+	});
+}
+function onDiagTextLitterTypeChanged(index: number): void {
+	const typeList: LitterType[] = [
+		"vomit", "vomit_alt", "empty_can", "rubbish",
+		"burger_box", "empty_cup", "empty_box", "empty_bottle",
+		"empty_bowl_red", "empty_drink_carton", "empty_juice_cup", "empty_bowl_blue"
+	];
+	if (index >= 0 && index < typeList.length) {
+		diagTextLitterType = typeList[index];
+	}
+}
+function onDiagTextPlace(): void {
+	const w = ui.getWindow(windowId);
+	if (!w) { return; }
+	const btn = w.findWidget<ButtonWidget>(diagTextButtonPlace);
+	if (btn.isPressed) {
+		btn.isPressed = false;
+		ui.tool?.cancel();
+		return;
+	}
+	if (!diagTextString) {
+		ui.showError("Warning:", "No text set. Use 'Set Text...' first.");
+		return;
+	}
+	btn.isPressed = true;
+	ui.activateTool({
+		id: diagTextToolId,
+		cursor: "cross_hair",
+		filter: ["terrain"],
+		onDown: e => {
+			if (e.mapCoords !== undefined) {
+				const coords = e.mapCoords;
+				const surfaces = getTileElements("surface", coords);
+				const baseZ = surfaces[0].element.baseZ;
+				placeDiagonalText(coords, baseZ, diagTextString, diagTextLitterType);
+				const window = ui.getWindow(windowId);
+				if (window) {
+					window.findWidget<ButtonWidget>(diagTextButtonPlace).isPressed = false;
+				}
+				ui.tool?.cancel();
+			}
+		},
+		onFinish: () => {
+			const window = ui.getWindow(windowId);
+			if (window) {
+				window.findWidget<ButtonWidget>(diagTextButtonPlace).isPressed = false;
+			}
+		}
+	});
+}
+function placeDiagonalText(originCoords: CoordsXY, baseZ: number, text: string, litterType: LitterType): void {
+	const rotation = ui.mainViewport.rotation;
+	const chars = text.toLowerCase().split("");
+
+	for (let charIdx = 0; charIdx < chars.length; charIdx++) {
+		const ch = chars[charIdx];
+		const glyph: number[][] = LITTER_FONT[ch] !== undefined ? LITTER_FONT[ch] : LITTER_FONT[" "];
+		const charAdvance = charIdx * 32;
+		const numRows = glyph.length;
+
+		for (let row = 0; row < numRows; row++) {
+			for (let col = 0; col < glyph[row].length; col++) {
+				if (!glyph[row][col]) { continue; }
+
+				const colOffset = DIAG_TEXT_COL_OFFSETS[col];
+				let lx: number;
+				let ly: number;
+
+				// Map font columns to primary advance axis; rows stack in +z.
+				// Rotation 0 (NW up): +x; Rotation 1 (NE up): +y;
+				// Rotation 2 (SE up): -x; Rotation 3 (SW up): -y
+				switch (rotation) {
+					case 1:
+						lx = originCoords.x;
+						ly = originCoords.y + charAdvance + colOffset;
+						break;
+					case 2:
+						lx = originCoords.x - charAdvance - colOffset;
+						ly = originCoords.y;
+						break;
+					case 3:
+						lx = originCoords.x;
+						ly = originCoords.y - charAdvance - colOffset;
+						break;
+					default: // case 0
+						lx = originCoords.x + charAdvance + colOffset;
+						ly = originCoords.y;
+						break;
+				}
+
+				// Row 0 is the top of the character (highest z); last row is at baseZ.
+				const lz = baseZ + (numRows - 1 - row) * 16;
+
+				const entity = map.createEntity("litter", { x: lx, y: ly, z: lz });
+				const litter = <Litter>entity;
+				litter.litterType = litterType;
+			}
+		}
+	}
+
+	debug("Diagonal text placement complete. Text: " + text);
 }
 //Create litter
 
