@@ -3,6 +3,7 @@ import { debug } from "../helpers/logger";
 import { isDevelopment, pluginVersion } from "../helpers/environment";
 import { getTileElements } from "../helpers/Z-Coords";
 import { litterCount, totalLitterCount } from "../helpers/litterStats";
+import { LITTER_FONT } from "../helpers/litterFont";
 
 // Settings for the window
 export const windowId = "litter-editor-window";
@@ -27,10 +28,18 @@ const buttonCreateLitter: string = "litter-editor-button-create-litter";
 const multiplierIndex: string[] = ["x1", "x10", "x100"];
 const multiplierLabel: string = "litter-editor-multiplier-label";
 const toolCreateLitter: string = "litter-editor-tool-create-litter";
+const toolDiagText: string = "litter-editor-diag-text-tool";
+const diagTextLabel: string = "litter-editor-diag-text-label";
+const diagTextCurrentLabel: string = "litter-editor-diag-text-current-label";
+const diagTextDropDown: string = "litter-editor-diag-text-drop-down";
+const diagTextDropDownLabel: string = "litter-editor-diag-text-drop-down-label";
+const diagTextPlaceButton: string = "litter-editor-diag-text-place-button";
 
 let idLitter: Litter;
 let multiplier: number = 1;
 let selectedLitterType: LitterType = "vomit";
+let diagTextString: string = "";
+let diagTextLitterType: LitterType = "vomit";
 
 export class LitterEditorWindow {
 	/**
@@ -610,6 +619,122 @@ export class LitterEditorWindow {
 					},
 					{
 						image: {
+							frameBase: 5199, //diagonal text
+							frameCount: 8,
+							frameDuration: 4,
+						},
+						widgets: [
+							<LabelWidget>{
+								type: "label",
+								x: 0,
+								y: 232,
+								width: 260,
+								height: widgetLineHeight,
+								textAlign: "centred",
+								text: "github.com/EnoxRCT/OpenRCT2-LitterEditor",
+								tooltip: "Powered by Manticore_007 and Basssiiie",
+								isDisabled: true,
+							},
+							<GroupBoxWidget>{
+								type: "groupbox",
+								x: 10,
+								y: 55,
+								width: 240,
+								height: 170,
+								text: "Diagonal Text",
+							},
+							<LabelWidget>{
+								name: diagTextLabel,
+								type: "label",
+								x: 20,
+								y: 75,
+								width: 50,
+								height: widgetLineHeight,
+								text: "Text",
+								isDisabled: true,
+							},
+							<ButtonDesc>{
+								type: "button",
+								border: true,
+								x: 70,
+								y: 72,
+								width: 70,
+								height: widgetLineHeight + 2,
+								text: "Set Text...",
+								onClick: () => {
+									ui.showTextInput({
+										title: "Diagonal Text",
+										description: "Enter the text to place (A-Z):",
+										initialValue: diagTextString,
+										callback: value => {
+											diagTextString = value.toUpperCase();
+											const w = ui.getWindow(windowId);
+											if (w) {
+												w.findWidget<LabelWidget>(diagTextCurrentLabel).text = diagTextString || "(none)";
+											}
+										}
+									});
+								}
+							},
+							<LabelWidget>{
+								name: diagTextCurrentLabel,
+								type: "label",
+								x: 145,
+								y: 75,
+								width: 100,
+								height: widgetLineHeight,
+								text: "(none)",
+							},
+							<LabelWidget>{
+								name: diagTextDropDownLabel,
+								type: "label",
+								x: 20,
+								y: 100,
+								width: 75,
+								height: widgetLineHeight,
+								text: "Litter Type",
+								isDisabled: true,
+							},
+							<DropdownDesc>{
+								name: diagTextDropDown,
+								type: "dropdown",
+								x: 90,
+								y: 100,
+								width: 125,
+								height: widgetLineHeight,
+								items: [
+									"Vomit",				//0
+									"Vomit Alt",			//1
+									"Empty Can",			//2
+									"Rubbish",				//3
+									"Burger Box",			//4
+									"Empty Cup",			//5
+									"Empty Box",			//6
+									"Empty Bottle",			//7
+									"Empty Bowl Red",		//8
+									"Empty Drink Carton",	//9
+									"Empty Juice Cup",		//10
+									"Empty Bowl Blue"		//11
+								],
+								selectedIndex: 0,
+								onChange: (number) => setDiagTextLitterType(number)
+							},
+							<ButtonDesc>{
+								name: diagTextPlaceButton,
+								type: "button",
+								border: true,
+								x: 70,
+								y: 125,
+								width: 120,
+								height: widgetLineHeight + 2,
+								text: "Place Text",
+								isPressed: false,
+								onClick: () => onDiagTextPlace()
+							},
+						],
+					},
+					{
+						image: {
 							frameBase: 5367, //info
 							frameCount: 8,
 							frameDuration: 4,
@@ -889,6 +1014,87 @@ function createLitter(type: EntityType): void {
 				}
 			}
 		});
+	}
+}
+
+function setDiagTextLitterType(number: number): void {
+	const litterTypeList: LitterType[] = ["vomit", "vomit_alt", "empty_can", "rubbish", "burger_box", "empty_cup", "empty_box", "empty_bottle", "empty_bowl_red", "empty_drink_carton", "empty_juice_cup", "empty_bowl_blue"];
+	diagTextLitterType = litterTypeList[number];
+}
+
+function onDiagTextPlace(): void {
+	const window = ui.getWindow(windowId);
+	if (!window) {
+		return;
+	}
+	const placeButton = window.findWidget<ButtonWidget>(diagTextPlaceButton);
+	if (placeButton.isPressed !== false) {
+		placeButton.isPressed = false;
+		ui.tool?.cancel();
+	} else {
+		placeButton.isPressed = true;
+		ui.activateTool({
+			id: toolDiagText,
+			cursor: "cross_hair",
+			filter: ["terrain"],
+			onDown: e => {
+				if (e.mapCoords !== undefined) {
+					const axisCoords = e.mapCoords;
+					const surfaceElements = getTileElements("surface", axisCoords);
+					const baseZ = surfaceElements[0].element.baseZ;
+					placeDiagonalText(axisCoords, baseZ, diagTextString, diagTextLitterType);
+					const w = ui.getWindow(windowId);
+					if (w) {
+						w.findWidget<ButtonWidget>(diagTextPlaceButton).isPressed = false;
+					}
+					ui.tool?.cancel();
+				}
+			}
+		});
+	}
+}
+
+function placeDiagonalText(originCoords: CoordsXY, baseZ: number, text: string, litterType: LitterType): void {
+	const COL_SPACING = 3;
+	const ROW_SPACING = 3;
+	const KERNING = 2;
+	const Z_OFFSET = 0;
+	const CHAR_WIDTH = 5;
+	const CHAR_HEIGHT = 7;
+	const charAdvanceTotal = (CHAR_WIDTH * COL_SPACING) + KERNING;
+	const rotation = ui.mainViewport.rotation;
+
+	for (let charIdx = 0; charIdx < text.length; charIdx++) {
+		const ch = text[charIdx];
+		const glyph = LITTER_FONT[ch] ?? LITTER_FONT[" "];
+
+		for (let row = 0; row < CHAR_HEIGHT; row++) {
+			for (let col = 0; col < CHAR_WIDTH; col++) {
+				if (glyph[row][col] === 1) {
+					let lx: number;
+					let ly: number;
+
+					if (rotation === 0) {
+						lx = originCoords.x + (charIdx * charAdvanceTotal) + (col * COL_SPACING);
+						ly = originCoords.y;
+					} else if (rotation === 1) {
+						lx = originCoords.x;
+						ly = originCoords.y + (charIdx * charAdvanceTotal) + (col * COL_SPACING);
+					} else if (rotation === 2) {
+						lx = originCoords.x - (charIdx * charAdvanceTotal) - (col * COL_SPACING);
+						ly = originCoords.y;
+					} else {
+						lx = originCoords.x;
+						ly = originCoords.y - (charIdx * charAdvanceTotal) - (col * COL_SPACING);
+					}
+
+					const lz = baseZ + Z_OFFSET + ((CHAR_HEIGHT - 1 - row) * ROW_SPACING);
+					const createdEntity = map.createEntity("litter", { x: lx, y: ly, z: lz });
+					const createdLitter = <Litter>createdEntity;
+					createdLitter.litterType = litterType;
+				}
+			}
+		}
 	}
 }
 
