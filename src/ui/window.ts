@@ -1041,10 +1041,10 @@ function distributeTrackLitter(): void {
 					let lx: number;
 					let ly: number;
 
-					// direction 0 (N) or 2 (S): track runs North-South → distribute along Y axis
-					// direction 1 (E) or 3 (W): track runs East-West  → distribute along X axis
+					// direction 0 (N) or 2 (S): track runs North-South → distribute along X axis
+					// direction 1 (E) or 3 (W): track runs East-West  → distribute along Y axis
 					// The perpendicular axis is fixed at tile centre (+ 16)
-					if (direction === 0 || direction === 2) {
+					if (direction === 1 || direction === 3) {
 						lx = originX + 16;
 						ly = originY + offset;
 					} else {
