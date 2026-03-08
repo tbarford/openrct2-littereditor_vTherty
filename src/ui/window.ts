@@ -634,7 +634,7 @@ export class LitterEditorWindow {
 								x: 90, y: 72, width: 150, height: widgetLineHeight,
 								items: trackDistRideItems.length > 0 ? trackDistRideItems : ["(no rides)"],
 								selectedIndex: 0,
-								onChange: (_index: number) => { /* stub — wired in PR 2 */ },
+								onChange: (index: number) => onTrackDistRideChanged(index),
 							},
 							// Row 2: Number of litter spinner (1–8, default 4)
 							<LabelWidget>{
@@ -648,8 +648,8 @@ export class LitterEditorWindow {
 								type: "spinner",
 								x: 90, y: 92, width: 70, height: widgetLineHeight,
 								text: "4",
-								onIncrement: () => { /* stub — wired in PR 2 */ },
-								onDecrement: () => { /* stub — wired in PR 2 */ },
+								onIncrement: () => onTrackDistCountChange(1),
+								onDecrement: () => onTrackDistCountChange(-1),
 							},
 							// Row 3: Litter type dropdown
 							<LabelWidget>{
@@ -677,7 +677,7 @@ export class LitterEditorWindow {
 									"Empty Bowl Blue"     // 11
 								],
 								selectedIndex: 0,
-								onChange: (_index: number) => { /* stub — wired in PR 2 */ },
+								onChange: (index: number) => onTrackDistLitterTypeChanged(index),
 							},
 							// Row 4: Track Z offset spinner (-8 to +8, default 0)
 							<LabelWidget>{
@@ -691,8 +691,8 @@ export class LitterEditorWindow {
 								type: "spinner",
 								x: 90, y: 132, width: 70, height: widgetLineHeight,
 								text: "0",
-								onIncrement: () => { /* stub — wired in PR 2 */ },
-								onDecrement: () => { /* stub — wired in PR 2 */ },
+								onIncrement: () => onTrackDistOffsetChange(1),
+								onDecrement: () => onTrackDistOffsetChange(-1),
 							},
 							// Row 5: Distribute action button
 							<ButtonDesc>{
@@ -700,7 +700,7 @@ export class LitterEditorWindow {
 								type: "button",
 								x: 20, y: 160, width: 220, height: 25,
 								text: "Distribute Litter",
-								onClick: () => { /* stub — wired in PR 2 */ },
+								onClick: () => distributeTrackLitter(),
 							},
 						],
 					},
@@ -957,6 +957,114 @@ function setMultiplier(number: number): void {
 	if (number === 0) {multiplier = 1;}
 	if (number === 1) {multiplier = 10;}
 	if (number === 2) {multiplier = 100;}
+}
+function onTrackDistRideChanged(index: number): void {
+	trackDistSelectedRideIdx = index;
+}
+function onTrackDistCountChange(delta: number): void {
+	const newVal = trackDistCount + delta;
+	if (newVal < 1 || newVal > 8) { return; }
+	trackDistCount = newVal;
+	const w = ui.getWindow(windowId);
+	if (w) {
+		w.findWidget<SpinnerWidget>(trackDistCountSpinner).text = trackDistCount.toString();
+	}
+}
+function onTrackDistLitterTypeChanged(index: number): void {
+	const typeList: LitterType[] = [
+		"vomit", "vomit_alt", "empty_can", "rubbish",
+		"burger_box", "empty_cup", "empty_box", "empty_bottle",
+		"empty_bowl_red", "empty_drink_carton", "empty_juice_cup", "empty_bowl_blue"
+	];
+	if (index >= 0 && index < typeList.length) {
+		trackDistLitterType = typeList[index];
+	}
+}
+function onTrackDistOffsetChange(delta: number): void {
+	const newVal = trackDistZOffset + delta;
+	if (newVal < -8 || newVal > 8) { return; }
+	trackDistZOffset = newVal;
+	const w = ui.getWindow(windowId);
+	if (w) {
+		w.findWidget<SpinnerWidget>(trackDistOffsetSpinner).text = trackDistZOffset.toString();
+	}
+}
+function distributeTrackLitter(): void {
+	if (trackDistRideIds.length === 0 || trackDistSelectedRideIdx >= trackDistRideIds.length) {
+		ui.showError("Warning:", "No valid ride selected.");
+		return;
+	}
+
+	const targetRideId = trackDistRideIds[trackDistSelectedRideIdx];
+	const mapSize = map.size; // CoordsXY in tile units
+	const N = trackDistCount;
+	let placedCount = 0;
+
+	for (let tileX = 0; tileX < mapSize.x; tileX++) {
+		for (let tileY = 0; tileY < mapSize.y; tileY++) {
+
+			// map.getTile() takes tile coordinates directly — do NOT divide by 32
+			const tile = map.getTile(tileX, tileY);
+			const elements = tile.elements;
+
+			// Iterate ALL elements on this tile — do NOT break or return early.
+			// A single tile can have multiple flat-straight track elements of the
+			// same ride at different heights or directions. Each one produces its
+			// own independent litter line.
+			for (let i = 0; i < elements.length; i++) {
+				const el = elements[i];
+				if (el.type !== "track") { continue; }
+
+				const trackEl = <TrackElement>el;
+
+				// Only flat straight track (trackType === 0) for the target ride
+				if (trackEl.trackType !== 0) { continue; }
+				if (trackEl.ride !== targetRideId) { continue; }
+
+				// This element matches — generate a litter line for it
+				const direction: number = trackEl.direction; // 0 | 1 | 2 | 3
+				const baseZ = trackEl.baseZ + trackDistZOffset;
+
+				// Tile origin in map units (multiply tile coords by 32)
+				const originX = tileX * 32;
+				const originY = tileY * 32;
+
+				// Place N litter items distributed along the tile.
+				// Formula: Math.floor((2*k + 1) * 32 / (2 * N))
+				// Guarantees all positions are integers in [0..31],
+				// uniformly spaced with half-gap before first and after last.
+				// Adjacent items may differ by 1 unit when N does not divide 32
+				// evenly — this is expected and acceptable.
+				for (let k = 0; k < N; k++) {
+					const offset = Math.floor((2 * k + 1) * 32 / (2 * N));
+
+					let lx: number;
+					let ly: number;
+
+					// direction 0 (N) or 2 (S): track runs North-South → distribute along Y axis
+					// direction 1 (E) or 3 (W): track runs East-West  → distribute along X axis
+					// The perpendicular axis is fixed at tile centre (+ 16)
+					if (direction === 0 || direction === 2) {
+						lx = originX + 16;
+						ly = originY + offset;
+					} else {
+						lx = originX + offset;
+						ly = originY + 16;
+					}
+
+					// Create litter entity — mirrors existing pattern in createLitter() function
+					const createdEntity = map.createEntity("litter", { x: lx, y: ly, z: baseZ });
+					const createdLitter = <Litter>createdEntity;
+					createdLitter.litterType = trackDistLitterType;
+					placedCount++;
+				}
+				// NOTE: No break here. Continue iterating remaining elements[i+1..n]
+				// to find additional qualifying track elements on this same tile.
+			}
+		}
+	}
+
+	debug("Track litter distribution complete. Placed: " + placedCount);
 }
 //Create litter
 
