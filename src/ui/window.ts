@@ -28,9 +28,28 @@ const multiplierIndex: string[] = ["x1", "x10", "x100"];
 const multiplierLabel: string = "litter-editor-multiplier-label";
 const toolCreateLitter: string = "litter-editor-tool-create-litter";
 
+// Track Distributor tab widget names
+const trackDistRideDropdown: string   = "litter-editor-track-dist-ride-dropdown";
+const trackDistRideLabel: string      = "litter-editor-track-dist-ride-label";
+const trackDistCountSpinner: string   = "litter-editor-track-dist-count-spinner";
+const trackDistCountLabel: string     = "litter-editor-track-dist-count-label";
+const trackDistLitterDropdown: string = "litter-editor-track-dist-litter-dropdown";
+const trackDistLitterLabel: string    = "litter-editor-track-dist-litter-label";
+const trackDistOffsetSpinner: string  = "litter-editor-track-dist-offset-spinner";
+const trackDistOffsetLabel: string    = "litter-editor-track-dist-offset-label";
+const trackDistButton: string         = "litter-editor-track-dist-button";
+
 let idLitter: Litter;
 let multiplier: number = 1;
 let selectedLitterType: LitterType = "vomit";
+
+// Track Distributor tab state
+let trackDistRideItems: string[] = [];
+let trackDistRideIds: number[] = [];
+let trackDistSelectedRideIdx: number = 0;
+let trackDistCount: number = 4;
+let trackDistLitterType: LitterType = "vomit";
+let trackDistZOffset: number = 0;
 
 export class LitterEditorWindow {
 	/**
@@ -48,6 +67,19 @@ export class LitterEditorWindow {
 			if (isDevelopment) {
 				windowTitle += " [DEBUG]";
 			}
+			// Populate ride list at window-open time (snapshot; stale list is expected/normal)
+			trackDistRideItems = [];
+			trackDistRideIds = [];
+			const rides = map.rides;
+			for (let i = 0; i < rides.length; i++) {
+				const ride = rides[i];
+				trackDistRideItems.push(ride.id + ": " + ride.name);
+				trackDistRideIds.push(ride.id);
+			}
+			trackDistSelectedRideIdx = 0;
+			trackDistCount = 4;
+			trackDistLitterType = "vomit";
+			trackDistZOffset = 0;
 			ui.openWindow({
 				onClose: () => {
 					ui.tool?.cancel();
@@ -568,6 +600,107 @@ export class LitterEditorWindow {
 								width: 200,
 								height: widgetLineHeight,
 								text: `Total amount of litter: {WHITE}${totalLitterCount()}`,
+							},
+						],
+					},
+					{
+						image: 5193, // TODO: verify track/ride icon ID in-game; try 29367 if incorrect
+						widgets: [
+							// Footer label — matches pattern on all other tabs
+							<LabelWidget>{
+								type: "label",
+								x: 0, y: 232, width: 260, height: widgetLineHeight,
+								textAlign: "centred",
+								text: "github.com/EnoxRCT/OpenRCT2-LitterEditor",
+								tooltip: "Powered by Manticore_007 and Basssiiie",
+								isDisabled: true,
+							},
+							// Groupbox
+							<GroupBoxWidget>{
+								type: "groupbox",
+								x: 10, y: 55, width: 240, height: 170,
+								text: "Track Distributor",
+							},
+							// Row 1: Ride selector
+							<LabelWidget>{
+								name: trackDistRideLabel,
+								type: "label",
+								x: 20, y: 72, width: 65, height: widgetLineHeight,
+								text: "Ride",
+							},
+							<DropdownDesc>{
+								name: trackDistRideDropdown,
+								type: "dropdown",
+								x: 90, y: 72, width: 150, height: widgetLineHeight,
+								items: trackDistRideItems.length > 0 ? trackDistRideItems : ["(no rides)"],
+								selectedIndex: 0,
+								onChange: (_index: number) => { /* stub — wired in PR 2 */ },
+							},
+							// Row 2: Number of litter spinner (1–8, default 4)
+							<LabelWidget>{
+								name: trackDistCountLabel,
+								type: "label",
+								x: 20, y: 92, width: 65, height: widgetLineHeight,
+								text: "Num. Litter",
+							},
+							<SpinnerDesc>{
+								name: trackDistCountSpinner,
+								type: "spinner",
+								x: 90, y: 92, width: 70, height: widgetLineHeight,
+								text: "4",
+								onIncrement: () => { /* stub — wired in PR 2 */ },
+								onDecrement: () => { /* stub — wired in PR 2 */ },
+							},
+							// Row 3: Litter type dropdown
+							<LabelWidget>{
+								name: trackDistLitterLabel,
+								type: "label",
+								x: 20, y: 112, width: 65, height: widgetLineHeight,
+								text: "Litter Type",
+							},
+							<DropdownDesc>{
+								name: trackDistLitterDropdown,
+								type: "dropdown",
+								x: 90, y: 112, width: 150, height: widgetLineHeight,
+								items: [
+									"Vomit",              // 0
+									"Vomit Alt",          // 1
+									"Empty Can",          // 2
+									"Rubbish",            // 3
+									"Burger Box",         // 4
+									"Empty Cup",          // 5
+									"Empty Box",          // 6
+									"Empty Bottle",       // 7
+									"Empty Bowl Red",     // 8
+									"Empty Drink Carton", // 9
+									"Empty Juice Cup",    // 10
+									"Empty Bowl Blue"     // 11
+								],
+								selectedIndex: 0,
+								onChange: (_index: number) => { /* stub — wired in PR 2 */ },
+							},
+							// Row 4: Track Z offset spinner (-8 to +8, default 0)
+							<LabelWidget>{
+								name: trackDistOffsetLabel,
+								type: "label",
+								x: 20, y: 132, width: 65, height: widgetLineHeight,
+								text: "Z Offset",
+							},
+							<SpinnerDesc>{
+								name: trackDistOffsetSpinner,
+								type: "spinner",
+								x: 90, y: 132, width: 70, height: widgetLineHeight,
+								text: "0",
+								onIncrement: () => { /* stub — wired in PR 2 */ },
+								onDecrement: () => { /* stub — wired in PR 2 */ },
+							},
+							// Row 5: Distribute action button
+							<ButtonDesc>{
+								name: trackDistButton,
+								type: "button",
+								x: 20, y: 160, width: 220, height: 25,
+								text: "Distribute Litter",
+								onClick: () => { /* stub — wired in PR 2 */ },
 							},
 						],
 					},
