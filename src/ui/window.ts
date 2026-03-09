@@ -1073,19 +1073,20 @@ function placeDiagonalText(originCoords: CoordsXY, baseZ: number, text: string, 
 				if (glyph[row][col] === 1) {
 					let lx: number;
 					let ly: number;
+					const d = (charIdx * charAdvanceTotal) + (col * COL_SPACING);
 
 					if (rotation === 0) {
-						lx = originCoords.x + (charIdx * charAdvanceTotal) + (col * COL_SPACING);
-						ly = originCoords.y;
+						lx = originCoords.x + d;
+						ly = originCoords.y - d;
 					} else if (rotation === 1) {
-						lx = originCoords.x;
-						ly = originCoords.y + (charIdx * charAdvanceTotal) + (col * COL_SPACING);
+						lx = originCoords.x + d;
+						ly = originCoords.y + d;
 					} else if (rotation === 2) {
-						lx = originCoords.x - (charIdx * charAdvanceTotal) - (col * COL_SPACING);
-						ly = originCoords.y;
+						lx = originCoords.x - d;
+						ly = originCoords.y + d;
 					} else {
-						lx = originCoords.x;
-						ly = originCoords.y - (charIdx * charAdvanceTotal) - (col * COL_SPACING);
+						lx = originCoords.x - d;
+						ly = originCoords.y - d;
 					}
 
 					const lz = baseZ + Z_OFFSET + ((CHAR_HEIGHT - 1 - row) * ROW_SPACING);
