@@ -604,7 +604,7 @@ export class LitterEditorWindow {
 						],
 					},
 					{
-						image: 5193, // TODO: verify track/ride icon ID in-game; try 29367 if incorrect
+						image: 29367, // TODO: verify track/ride icon ID in-game; try 29367 if incorrect
 						widgets: [
 							// Footer label — matches pattern on all other tabs
 							<LabelWidget>{
