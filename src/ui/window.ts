@@ -989,6 +989,15 @@ function onTrackDistOffsetChange(delta: number): void {
 		w.findWidget<SpinnerWidget>(trackDistOffsetSpinner).text = trackDistZOffset.toString();
 	}
 }
+function rotateXY(x: number, y: number, direction: number): { x: number; y: number } {
+	switch (direction & 3) {
+		case 0: return { x:  x, y:  y };
+		case 1: return { x:  y, y: -x };
+		case 2: return { x: -x, y: -y };
+		case 3: return { x: -y, y:  x };
+		default: return { x, y };
+	}
+}
 function distributeTrackLitter(): void {
 	if (trackDistRideIds.length === 0 || trackDistSelectedRideIdx >= trackDistRideIds.length) {
 		ui.showError("Warning:", "No valid ride selected.");
@@ -999,67 +1008,57 @@ function distributeTrackLitter(): void {
 	const mapSize = map.size; // CoordsXY in tile units
 	const N = trackDistCount;
 	let placedCount = 0;
+	const processed = new Set<string>();
 
 	for (let tileX = 0; tileX < mapSize.x; tileX++) {
 		for (let tileY = 0; tileY < mapSize.y; tileY++) {
 
-			// map.getTile() takes tile coordinates directly — do NOT divide by 32
 			const tile = map.getTile(tileX, tileY);
 			const elements = tile.elements;
 
-			// Iterate ALL elements on this tile — do NOT break or return early.
-			// A single tile can have multiple flat-straight track elements of the
-			// same ride at different heights or directions. Each one produces its
-			// own independent litter line.
 			for (let i = 0; i < elements.length; i++) {
 				const el = elements[i];
 				if (el.type !== "track") { continue; }
 
 				const trackEl = <TrackElement>el;
-
-				// Only flat straight track (trackType === 0) for the target ride
-				if (trackEl.trackType !== 0) { continue; }
 				if (trackEl.ride !== targetRideId) { continue; }
 
-				// This element matches — generate a litter line for it
-				const direction: number = trackEl.direction; // 0 | 1 | 2 | 3
-				const baseZ = trackEl.baseZ + trackDistZOffset;
+				const segment = context.getTrackSegment(trackEl.trackType);
+				if (!segment) { continue; }
 
-				// Tile origin in map units (multiply tile coords by 32)
-				const originX = tileX * 32;
-				const originY = tileY * 32;
+				const seq = trackEl.sequence ?? 0;
+				const seqOffset = segment.elements[seq] ?? { x: 0, y: 0, z: 0 };
 
-				// Place N litter items distributed along the tile.
-				// Formula: Math.floor((2*k + 1) * 32 / (2 * N))
-				// Guarantees all positions are integers in [0..31],
-				// uniformly spaced with half-gap before first and after last.
-				// Adjacent items may differ by 1 unit when N does not divide 32
-				// evenly — this is expected and acceptable.
-				for (let k = 0; k < N; k++) {
-					const offset = Math.floor((2 * k + 1) * 32 / (2 * N));
+				// Reverse the sequence offset (rotated by direction) to get origin tile world coords
+				const rot = rotateXY(seqOffset.x, seqOffset.y, trackEl.direction);
+				const originX = (tileX * 32) - rot.x;
+				const originY = (tileY * 32) - rot.y;
+				const originBaseZ = trackEl.baseZ - seqOffset.z;
 
-					let lx: number;
-					let ly: number;
+				// Dedup key: each logical track piece should only be processed once
+				const key = `${originX},${originY},${originBaseZ},${trackEl.trackType},${trackEl.direction}`;
+				if (processed.has(key)) { continue; }
+				processed.add(key);
 
-					// direction 0 (N) or 2 (S): track runs North-South → distribute along X axis
-					// direction 1 (E) or 3 (W): track runs East-West  → distribute along Y axis
-					// The perpendicular axis is fixed at tile centre (+ 16)
-					if (direction === 1 || direction === 3) {
-						lx = originX + 16;
-						ly = originY + offset;
-					} else {
-						lx = originX + offset;
-						ly = originY + 16;
-					}
+				// Get subpositions for the whole piece (subpositionType=0 = Default vehicle path)
+				const points = segment.getSubpositions(0, trackEl.direction);
+				if (!points || points.length === 0) { continue; }
 
-					// Create litter entity — mirrors existing pattern in createLitter() function
-					const createdEntity = map.createEntity("litter", { x: lx, y: ly, z: baseZ });
+				// Sample N evenly-spaced points from the subposition array
+				const sampleCount = Math.min(N, points.length);
+				for (let k = 0; k < sampleCount; k++) {
+					const idx = Math.round(k * (points.length - 1) / Math.max(sampleCount - 1, 1));
+					const p = points[idx];
+
+					const createdEntity = map.createEntity("litter", {
+						x: originX + p.x,
+						y: originY + p.y,
+						z: originBaseZ + p.z + trackDistZOffset
+					});
 					const createdLitter = <Litter>createdEntity;
 					createdLitter.litterType = trackDistLitterType;
 					placedCount++;
 				}
-				// NOTE: No break here. Continue iterating remaining elements[i+1..n]
-				// to find additional qualifying track elements on this same tile.
 			}
 		}
 	}
