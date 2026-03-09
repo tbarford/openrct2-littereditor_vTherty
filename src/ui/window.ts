@@ -42,6 +42,17 @@ const diagTextZOffsetSpinner: string = "litter-editor-diag-text-z-offset-spinner
 const diagTextHOffsetSpinner: string = "litter-editor-diag-text-h-offset-spinner";
 const diagTextBiasSpinner: string = "litter-editor-diag-text-bias-spinner";
 
+// Track Distributor tab widget names
+const trackDistRideDropdown: string   = "litter-editor-track-dist-ride-dropdown";
+const trackDistRideLabel: string      = "litter-editor-track-dist-ride-label";
+const trackDistCountSpinner: string   = "litter-editor-track-dist-count-spinner";
+const trackDistCountLabel: string     = "litter-editor-track-dist-count-label";
+const trackDistLitterDropdown: string = "litter-editor-track-dist-litter-dropdown";
+const trackDistLitterLabel: string    = "litter-editor-track-dist-litter-label";
+const trackDistOffsetSpinner: string  = "litter-editor-track-dist-offset-spinner";
+const trackDistOffsetLabel: string    = "litter-editor-track-dist-offset-label";
+const trackDistButton: string         = "litter-editor-track-dist-button";
+
 let idLitter: Litter;
 let multiplier: number = 1;
 let selectedLitterType: LitterType = "vomit";
@@ -54,6 +65,14 @@ let diagTextKerning: number = 2;
 let diagTextZOffset: number = 0;
 let diagTextHOffset: number = 0;
 let diagTextBias: number = 0;
+
+// Track Distributor tab state
+let trackDistRideItems: string[] = [];
+let trackDistRideIds: number[] = [];
+let trackDistSelectedRideIdx: number = 0;
+let trackDistCount: number = 4;
+let trackDistLitterType: LitterType = "vomit";
+let trackDistZOffset: number = 0;
 
 export class LitterEditorWindow {
 	/**
@@ -71,6 +90,19 @@ export class LitterEditorWindow {
 			if (isDevelopment) {
 				windowTitle += " [DEBUG]";
 			}
+			// Populate ride list at window-open time (snapshot; stale list is expected/normal)
+			trackDistRideItems = [];
+			trackDistRideIds = [];
+			const rides = map.rides;
+			for (let i = 0; i < rides.length; i++) {
+				const ride = rides[i];
+				trackDistRideItems.push(ride.id + ": " + ride.name);
+				trackDistRideIds.push(ride.id);
+			}
+			trackDistSelectedRideIdx = 0;
+			trackDistCount = 4;
+			trackDistLitterType = "vomit";
+			trackDistZOffset = 0;
 			ui.openWindow({
 				onClose: () => {
 					ui.tool?.cancel();
@@ -591,6 +623,107 @@ export class LitterEditorWindow {
 								width: 200,
 								height: widgetLineHeight,
 								text: `Total amount of litter: {WHITE}${totalLitterCount()}`,
+							},
+						],
+					},
+					{
+						image: 29367, // TODO: verify track/ride icon ID in-game; try 29367 if incorrect
+						widgets: [
+							// Footer label — matches pattern on all other tabs
+							<LabelWidget>{
+								type: "label",
+								x: 0, y: 232, width: 260, height: widgetLineHeight,
+								textAlign: "centred",
+								text: "github.com/EnoxRCT/OpenRCT2-LitterEditor",
+								tooltip: "Powered by Manticore_007 and Basssiiie",
+								isDisabled: true,
+							},
+							// Groupbox
+							<GroupBoxWidget>{
+								type: "groupbox",
+								x: 10, y: 55, width: 240, height: 170,
+								text: "Track Distributor",
+							},
+							// Row 1: Ride selector
+							<LabelWidget>{
+								name: trackDistRideLabel,
+								type: "label",
+								x: 20, y: 72, width: 65, height: widgetLineHeight,
+								text: "Ride",
+							},
+							<DropdownDesc>{
+								name: trackDistRideDropdown,
+								type: "dropdown",
+								x: 90, y: 72, width: 150, height: widgetLineHeight,
+								items: trackDistRideItems.length > 0 ? trackDistRideItems : ["(no rides)"],
+								selectedIndex: 0,
+								onChange: (index: number) => onTrackDistRideChanged(index),
+							},
+							// Row 2: Number of litter spinner (1–8, default 4)
+							<LabelWidget>{
+								name: trackDistCountLabel,
+								type: "label",
+								x: 20, y: 92, width: 65, height: widgetLineHeight,
+								text: "Num. Litter",
+							},
+							<SpinnerDesc>{
+								name: trackDistCountSpinner,
+								type: "spinner",
+								x: 90, y: 92, width: 70, height: widgetLineHeight,
+								text: "4",
+								onIncrement: () => onTrackDistCountChange(1),
+								onDecrement: () => onTrackDistCountChange(-1),
+							},
+							// Row 3: Litter type dropdown
+							<LabelWidget>{
+								name: trackDistLitterLabel,
+								type: "label",
+								x: 20, y: 112, width: 65, height: widgetLineHeight,
+								text: "Litter Type",
+							},
+							<DropdownDesc>{
+								name: trackDistLitterDropdown,
+								type: "dropdown",
+								x: 90, y: 112, width: 150, height: widgetLineHeight,
+								items: [
+									"Vomit",              // 0
+									"Vomit Alt",          // 1
+									"Empty Can",          // 2
+									"Rubbish",            // 3
+									"Burger Box",         // 4
+									"Empty Cup",          // 5
+									"Empty Box",          // 6
+									"Empty Bottle",       // 7
+									"Empty Bowl Red",     // 8
+									"Empty Drink Carton", // 9
+									"Empty Juice Cup",    // 10
+									"Empty Bowl Blue"     // 11
+								],
+								selectedIndex: 0,
+								onChange: (index: number) => onTrackDistLitterTypeChanged(index),
+							},
+							// Row 4: Track Z offset spinner (-8 to +8, default 0)
+							<LabelWidget>{
+								name: trackDistOffsetLabel,
+								type: "label",
+								x: 20, y: 132, width: 65, height: widgetLineHeight,
+								text: "Z Offset",
+							},
+							<SpinnerDesc>{
+								name: trackDistOffsetSpinner,
+								type: "spinner",
+								x: 90, y: 132, width: 70, height: widgetLineHeight,
+								text: "0",
+								onIncrement: () => onTrackDistOffsetChange(1),
+								onDecrement: () => onTrackDistOffsetChange(-1),
+							},
+							// Row 5: Distribute action button
+							<ButtonDesc>{
+								name: trackDistButton,
+								type: "button",
+								x: 20, y: 160, width: 220, height: 25,
+								text: "Distribute Litter",
+								onClick: () => distributeTrackLitter(),
 							},
 						],
 					},
@@ -1145,6 +1278,114 @@ function setMultiplier(number: number): void {
 	if (number === 0) {multiplier = 1;}
 	if (number === 1) {multiplier = 10;}
 	if (number === 2) {multiplier = 100;}
+}
+function onTrackDistRideChanged(index: number): void {
+	trackDistSelectedRideIdx = index;
+}
+function onTrackDistCountChange(delta: number): void {
+	const newVal = trackDistCount + delta;
+	if (newVal < 1 || newVal > 8) { return; }
+	trackDistCount = newVal;
+	const w = ui.getWindow(windowId);
+	if (w) {
+		w.findWidget<SpinnerWidget>(trackDistCountSpinner).text = trackDistCount.toString();
+	}
+}
+function onTrackDistLitterTypeChanged(index: number): void {
+	const typeList: LitterType[] = [
+		"vomit", "vomit_alt", "empty_can", "rubbish",
+		"burger_box", "empty_cup", "empty_box", "empty_bottle",
+		"empty_bowl_red", "empty_drink_carton", "empty_juice_cup", "empty_bowl_blue"
+	];
+	if (index >= 0 && index < typeList.length) {
+		trackDistLitterType = typeList[index];
+	}
+}
+function onTrackDistOffsetChange(delta: number): void {
+	const newVal = trackDistZOffset + delta;
+	if (newVal < -8 || newVal > 8) { return; }
+	trackDistZOffset = newVal;
+	const w = ui.getWindow(windowId);
+	if (w) {
+		w.findWidget<SpinnerWidget>(trackDistOffsetSpinner).text = trackDistZOffset.toString();
+	}
+}
+function distributeTrackLitter(): void {
+	if (trackDistRideIds.length === 0 || trackDistSelectedRideIdx >= trackDistRideIds.length) {
+		ui.showError("Warning:", "No valid ride selected.");
+		return;
+	}
+
+	const targetRideId = trackDistRideIds[trackDistSelectedRideIdx];
+	const mapSize = map.size; // CoordsXY in tile units
+	const N = trackDistCount;
+	let placedCount = 0;
+
+	for (let tileX = 0; tileX < mapSize.x; tileX++) {
+		for (let tileY = 0; tileY < mapSize.y; tileY++) {
+
+			// map.getTile() takes tile coordinates directly — do NOT divide by 32
+			const tile = map.getTile(tileX, tileY);
+			const elements = tile.elements;
+
+			// Iterate ALL elements on this tile — do NOT break or return early.
+			// A single tile can have multiple flat-straight track elements of the
+			// same ride at different heights or directions. Each one produces its
+			// own independent litter line.
+			for (let i = 0; i < elements.length; i++) {
+				const el = elements[i];
+				if (el.type !== "track") { continue; }
+
+				const trackEl = <TrackElement>el;
+
+				// Only flat straight track (trackType === 0) for the target ride
+				if (trackEl.trackType !== 0) { continue; }
+				if (trackEl.ride !== targetRideId) { continue; }
+
+				// This element matches — generate a litter line for it
+				const direction: number = trackEl.direction; // 0 | 1 | 2 | 3
+				const baseZ = trackEl.baseZ + trackDistZOffset;
+
+				// Tile origin in map units (multiply tile coords by 32)
+				const originX = tileX * 32;
+				const originY = tileY * 32;
+
+				// Place N litter items distributed along the tile.
+				// Formula: Math.floor((2*k + 1) * 32 / (2 * N))
+				// Guarantees all positions are integers in [0..31],
+				// uniformly spaced with half-gap before first and after last.
+				// Adjacent items may differ by 1 unit when N does not divide 32
+				// evenly — this is expected and acceptable.
+				for (let k = 0; k < N; k++) {
+					const offset = Math.floor((2 * k + 1) * 32 / (2 * N));
+
+					let lx: number;
+					let ly: number;
+
+					// direction 0 (N) or 2 (S): track runs North-South → distribute along X axis
+					// direction 1 (E) or 3 (W): track runs East-West  → distribute along Y axis
+					// The perpendicular axis is fixed at tile centre (+ 16)
+					if (direction === 1 || direction === 3) {
+						lx = originX + 16;
+						ly = originY + offset;
+					} else {
+						lx = originX + offset;
+						ly = originY + 16;
+					}
+
+					// Create litter entity — mirrors existing pattern in createLitter() function
+					const createdEntity = map.createEntity("litter", { x: lx, y: ly, z: baseZ });
+					const createdLitter = <Litter>createdEntity;
+					createdLitter.litterType = trackDistLitterType;
+					placedCount++;
+				}
+				// NOTE: No break here. Continue iterating remaining elements[i+1..n]
+				// to find additional qualifying track elements on this same tile.
+			}
+		}
+	}
+
+	debug("Track litter distribution complete. Placed: " + placedCount);
 }
 //Create litter
 
