@@ -3,6 +3,7 @@ import { debug } from "../helpers/logger";
 import { isDevelopment, pluginVersion } from "../helpers/environment";
 import { getTileElements } from "../helpers/Z-Coords";
 import { litterCount, totalLitterCount } from "../helpers/litterStats";
+import { LITTER_FONT } from "../helpers/litterFont";
 
 // Settings for the window
 export const windowId = "litter-editor-window";
@@ -27,10 +28,32 @@ const buttonCreateLitter: string = "litter-editor-button-create-litter";
 const multiplierIndex: string[] = ["x1", "x10", "x100"];
 const multiplierLabel: string = "litter-editor-multiplier-label";
 const toolCreateLitter: string = "litter-editor-tool-create-litter";
+const toolDiagText: string = "litter-editor-diag-text-tool";
+const diagTextLabel: string = "litter-editor-diag-text-label";
+const diagTextCurrentLabel: string = "litter-editor-diag-text-current-label";
+const diagTextDropDown: string = "litter-editor-diag-text-drop-down";
+const diagTextDropDownLabel: string = "litter-editor-diag-text-drop-down-label";
+const diagTextPlaceButton: string = "litter-editor-diag-text-place-button";
+const diagTextXSpacingSpinner: string = "litter-editor-diag-text-x-spacing-spinner";
+const diagTextYSpacingSpinner: string = "litter-editor-diag-text-y-spacing-spinner";
+const diagTextZSpacingSpinner: string = "litter-editor-diag-text-z-spacing-spinner";
+const diagTextKerningSpinner: string = "litter-editor-diag-text-kerning-spinner";
+const diagTextZOffsetSpinner: string = "litter-editor-diag-text-z-offset-spinner";
+const diagTextHOffsetSpinner: string = "litter-editor-diag-text-h-offset-spinner";
+const diagTextBiasSpinner: string = "litter-editor-diag-text-bias-spinner";
 
 let idLitter: Litter;
 let multiplier: number = 1;
 let selectedLitterType: LitterType = "vomit";
+let diagTextString: string = "";
+let diagTextLitterType: LitterType = "vomit";
+let diagTextXSpacing: number = 2;
+let diagTextYSpacing: number = 2;
+let diagTextZSpacing: number = 2;
+let diagTextKerning: number = 2;
+let diagTextZOffset: number = 0;
+let diagTextHOffset: number = 0;
+let diagTextBias: number = 0;
 
 export class LitterEditorWindow {
 	/**
@@ -610,6 +633,304 @@ export class LitterEditorWindow {
 					},
 					{
 						image: {
+							frameBase: 5199, //diagonal text
+							frameCount: 8,
+							frameDuration: 4,
+						},
+						widgets: [
+							<LabelWidget>{
+								type: "label",
+								x: 0,
+								y: 232,
+								width: 260,
+								height: widgetLineHeight,
+								textAlign: "centred",
+								text: "github.com/EnoxRCT/OpenRCT2-LitterEditor",
+								tooltip: "Powered by Manticore_007 and Basssiiie",
+								isDisabled: true,
+							},
+							<GroupBoxWidget>{
+								type: "groupbox",
+								x: 10,
+								y: 55,
+								width: 240,
+								height: 170,
+								text: "Diagonal Text",
+							},
+							<LabelWidget>{
+								name: diagTextLabel,
+								type: "label",
+								x: 20,
+								y: 75,
+								width: 50,
+								height: widgetLineHeight,
+								text: "Text",
+								isDisabled: true,
+							},
+							<ButtonDesc>{
+								type: "button",
+								border: true,
+								x: 70,
+								y: 72,
+								width: 70,
+								height: widgetLineHeight + 2,
+								text: "Set Text...",
+								onClick: () => {
+									ui.showTextInput({
+										title: "Diagonal Text",
+										description: "Enter the text to place (A-Z):",
+										initialValue: diagTextString,
+										callback: value => {
+											diagTextString = value.toUpperCase();
+											const w = ui.getWindow(windowId);
+											if (w) {
+												w.findWidget<LabelWidget>(diagTextCurrentLabel).text = diagTextString || "(none)";
+											}
+										}
+									});
+								}
+							},
+							<LabelWidget>{
+								name: diagTextCurrentLabel,
+								type: "label",
+								x: 145,
+								y: 75,
+								width: 100,
+								height: widgetLineHeight,
+								text: "(none)",
+							},
+							<LabelWidget>{
+								name: diagTextDropDownLabel,
+								type: "label",
+								x: 20,
+								y: 100,
+								width: 75,
+								height: widgetLineHeight,
+								text: "Litter Type",
+								isDisabled: true,
+							},
+							<DropdownDesc>{
+								name: diagTextDropDown,
+								type: "dropdown",
+								x: 90,
+								y: 100,
+								width: 125,
+								height: widgetLineHeight,
+								items: [
+									"Vomit",				//0
+									"Vomit Alt",			//1
+									"Empty Can",			//2
+									"Rubbish",				//3
+									"Burger Box",			//4
+									"Empty Cup",			//5
+									"Empty Box",			//6
+									"Empty Bottle",			//7
+									"Empty Bowl Red",		//8
+									"Empty Drink Carton",	//9
+									"Empty Juice Cup",		//10
+									"Empty Bowl Blue"		//11
+								],
+								selectedIndex: 0,
+								onChange: (number) => setDiagTextLitterType(number)
+							},
+							<ButtonDesc>{
+								name: diagTextPlaceButton,
+								type: "button",
+								border: true,
+								x: 70,
+								y: 125,
+								width: 120,
+								height: widgetLineHeight + 2,
+								text: "Place Text",
+								isPressed: false,
+								onClick: () => onDiagTextPlace()
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 15,
+								y: 148,
+								width: 62,
+								height: widgetLineHeight,
+								text: "X Spacing",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextXSpacingSpinner,
+								type: "spinner",
+								x: 80,
+								y: 148,
+								width: 55,
+								height: widgetLineHeight,
+								text: "2",
+								onIncrement: () => {
+									diagTextXSpacing = Math.min(32, diagTextXSpacing + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextXSpacingSpinner).text = diagTextXSpacing.toString();
+								},
+								onDecrement: () => {
+									diagTextXSpacing = Math.max(0, diagTextXSpacing - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextXSpacingSpinner).text = diagTextXSpacing.toString();
+								},
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 140,
+								y: 148,
+								width: 55,
+								height: widgetLineHeight,
+								text: "Y Spacing",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextYSpacingSpinner,
+								type: "spinner",
+								x: 198,
+								y: 148,
+								width: 45,
+								height: widgetLineHeight,
+								text: "2",
+								onIncrement: () => {
+									diagTextYSpacing = Math.min(32, diagTextYSpacing + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextYSpacingSpinner).text = diagTextYSpacing.toString();
+								},
+								onDecrement: () => {
+									diagTextYSpacing = Math.max(0, diagTextYSpacing - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextYSpacingSpinner).text = diagTextYSpacing.toString();
+								},
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 15,
+								y: 164,
+								width: 62,
+								height: widgetLineHeight,
+								text: "Z Spacing",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextZSpacingSpinner,
+								type: "spinner",
+								x: 80,
+								y: 164,
+								width: 55,
+								height: widgetLineHeight,
+								text: "2",
+								onIncrement: () => {
+									diagTextZSpacing = Math.min(32, diagTextZSpacing + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextZSpacingSpinner).text = diagTextZSpacing.toString();
+								},
+								onDecrement: () => {
+									diagTextZSpacing = Math.max(0, diagTextZSpacing - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextZSpacingSpinner).text = diagTextZSpacing.toString();
+								},
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 140,
+								y: 164,
+								width: 55,
+								height: widgetLineHeight,
+								text: "Kerning",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextKerningSpinner,
+								type: "spinner",
+								x: 198,
+								y: 164,
+								width: 45,
+								height: widgetLineHeight,
+								text: "2",
+								onIncrement: () => {
+									diagTextKerning = Math.min(32, diagTextKerning + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextKerningSpinner).text = diagTextKerning.toString();
+								},
+								onDecrement: () => {
+									diagTextKerning = Math.max(0, diagTextKerning - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextKerningSpinner).text = diagTextKerning.toString();
+								},
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 15,
+								y: 180,
+								width: 62,
+								height: widgetLineHeight,
+								text: "Z Offset",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextZOffsetSpinner,
+								type: "spinner",
+								x: 80,
+								y: 180,
+								width: 55,
+								height: widgetLineHeight,
+								text: "0",
+								onIncrement: () => {
+									diagTextZOffset = Math.min(128, diagTextZOffset + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextZOffsetSpinner).text = diagTextZOffset.toString();
+								},
+								onDecrement: () => {
+									diagTextZOffset = Math.max(-128, diagTextZOffset - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextZOffsetSpinner).text = diagTextZOffset.toString();
+								},
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 140,
+								y: 180,
+								width: 55,
+								height: widgetLineHeight,
+								text: "H Offset",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextHOffsetSpinner,
+								type: "spinner",
+								x: 198,
+								y: 180,
+								width: 45,
+								height: widgetLineHeight,
+								text: "0",
+								onIncrement: () => {
+									diagTextHOffset = Math.min(128, diagTextHOffset + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextHOffsetSpinner).text = diagTextHOffset.toString();
+								},
+								onDecrement: () => {
+									diagTextHOffset = Math.max(-128, diagTextHOffset - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextHOffsetSpinner).text = diagTextHOffset.toString();
+								},
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 15,
+								y: 196,
+								width: 62,
+								height: widgetLineHeight,
+								text: "Bias",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextBiasSpinner,
+								type: "spinner",
+								x: 80,
+								y: 196,
+								width: 55,
+								height: widgetLineHeight,
+								text: "0",
+								onIncrement: () => {
+									diagTextBias = Math.min(128, diagTextBias + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextBiasSpinner).text = diagTextBias.toString();
+								},
+								onDecrement: () => {
+									diagTextBias = Math.max(-128, diagTextBias - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextBiasSpinner).text = diagTextBias.toString();
+								},
+							},
+						],
+					},
+					{
+						image: {
 							frameBase: 5367, //info
 							frameCount: 8,
 							frameDuration: 4,
@@ -889,6 +1210,91 @@ function createLitter(type: EntityType): void {
 				}
 			}
 		});
+	}
+}
+
+function setDiagTextLitterType(number: number): void {
+	const litterTypeList: LitterType[] = ["vomit", "vomit_alt", "empty_can", "rubbish", "burger_box", "empty_cup", "empty_box", "empty_bottle", "empty_bowl_red", "empty_drink_carton", "empty_juice_cup", "empty_bowl_blue"];
+	diagTextLitterType = litterTypeList[number];
+}
+
+function onDiagTextPlace(): void {
+	const window = ui.getWindow(windowId);
+	if (!window) {
+		return;
+	}
+	const placeButton = window.findWidget<ButtonWidget>(diagTextPlaceButton);
+	if (placeButton.isPressed !== false) {
+		placeButton.isPressed = false;
+		ui.tool?.cancel();
+	} else {
+		placeButton.isPressed = true;
+		ui.activateTool({
+			id: toolDiagText,
+			cursor: "cross_hair",
+			filter: ["terrain"],
+			onDown: e => {
+				if (e.mapCoords !== undefined) {
+					const axisCoords = e.mapCoords;
+					const surfaceElements = getTileElements("surface", axisCoords);
+					const baseZ = surfaceElements[0].element.baseZ;
+					placeDiagonalText(axisCoords, baseZ, diagTextString, diagTextLitterType);
+					const w = ui.getWindow(windowId);
+					if (w) {
+						w.findWidget<ButtonWidget>(diagTextPlaceButton).isPressed = false;
+					}
+					ui.tool?.cancel();
+				}
+			}
+		});
+	}
+}
+
+function placeDiagonalText(originCoords: CoordsXY, baseZ: number, text: string, litterType: LitterType): void {
+	const CHAR_WIDTH = 5;
+	const CHAR_HEIGHT = 7;
+	const charAdvanceX = (CHAR_WIDTH * diagTextXSpacing) + diagTextKerning;
+	const charAdvanceY = (CHAR_WIDTH * diagTextYSpacing) + diagTextKerning;
+	const rotation = ui.mainViewport.rotation;
+
+	for (let charIdx = 0; charIdx < text.length; charIdx++) {
+		const ch = text[charIdx];
+		const glyph = LITTER_FONT[ch] ?? LITTER_FONT[" "];
+
+		for (let row = 0; row < CHAR_HEIGHT; row++) {
+			for (let col = 0; col < CHAR_WIDTH; col++) {
+				if (glyph[row][col] === 1) {
+					let lx: number;
+					let ly: number;
+					const dx = diagTextHOffset + (charIdx * charAdvanceX) + (col * diagTextXSpacing);
+					const dy = diagTextHOffset + (charIdx * charAdvanceY) + (col * diagTextYSpacing);
+
+					switch (rotation) {
+						case 0:
+							lx = originCoords.x - dx;
+							ly = originCoords.y + dy;
+							break;
+						case 1:
+							lx = originCoords.x - dx;
+							ly = originCoords.y - dy;
+							break;
+						case 2:
+							lx = originCoords.x + dx;
+							ly = originCoords.y - dy;
+							break;
+						default:
+							lx = originCoords.x + dx;
+							ly = originCoords.y + dy;
+							break;
+					}
+
+					const lz = baseZ + diagTextZOffset + (charIdx * diagTextBias) + ((CHAR_HEIGHT - 1 - row) * diagTextZSpacing);
+					const createdEntity = map.createEntity("litter", { x: lx, y: ly, z: lz });
+					const createdLitter = <Litter>createdEntity;
+					createdLitter.litterType = litterType;
+				}
+			}
+		}
 	}
 }
 
