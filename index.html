@@ -22,7 +22,7 @@
     
     <div class="box">
         <label><strong>1. Select an Image</strong></label>
-        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Best results with pixel art. Images larger than 32x32 will be automatically scaled down.</p>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Best results with simple pixel art. Images larger than 32x32 will be scaled down.</p>
         <input type="file" id="imageLoader" accept="image/png, image/jpeg, image/bmp"/>
     </div>
 
@@ -103,7 +103,11 @@
         
         let pixelArray = [];
 
-        // 1. Map all pixels to a 1D array of characters
+        // --- Color Tolerance / Fuzziness Setup ---
+        // A threshold for snapping: Lower is stricter, higher is fuzzier.
+        const FUZZINESS_THRESHOLD = 50.0; 
+
+        // 1. Map all pixels to a 1D array of characters with fuzzy snapping
         for (let i = 0; i < width * height; i++) {
             const index = i * 4;
             const a = data[index + 3];
@@ -122,23 +126,39 @@
                 const g = data[index + 1];
                 const b = data[index + 2];
 
-                let closestColor = PALETTE[0];
-                let minDistance = Infinity;
+                // --- Snapping Logic ---
+                let snappedColor = null;
 
-                // Find closest palette color via Euclidean distance
                 for (const color of PALETTE) {
                     const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                        closestColor = color;
+                    
+                    if (dist <= FUZZINESS_THRESHOLD) {
+                        snappedColor = color;
+                        break; // Found a snap within our threshold, stop searching!
                     }
                 }
-                pixelArray.push(closestColor.char);
+
+                // Fall back to absolute closest match only if no fuzzy snap was found
+                if (!snappedColor) {
+                    let closestColor = PALETTE[0];
+                    let minDistance = Infinity;
+
+                    for (const color of PALETTE) {
+                        const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            closestColor = color;
+                        }
+                    }
+                    snappedColor = closestColor;
+                }
+
+                pixelArray.push(snappedColor.char);
 
                 // Overwrite the canvas pixel with the palette color
-                data[index] = closestColor.rgb[0];
-                data[index+1] = closestColor.rgb[1];
-                data[index+2] = closestColor.rgb[2];
+                data[index] = snappedColor.rgb[0];
+                data[index+1] = snappedColor.rgb[1];
+                data[index+2] = snappedColor.rgb[2];
                 data[index+3] = 255;
             }
         }
