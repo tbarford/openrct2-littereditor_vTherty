@@ -39,8 +39,11 @@ const diagTextYSpacingSpinner: string = "litter-editor-diag-text-y-spacing-spinn
 const diagTextZSpacingSpinner: string = "litter-editor-diag-text-z-spacing-spinner";
 const diagTextKerningSpinner: string = "litter-editor-diag-text-kerning-spinner";
 const diagTextZOffsetSpinner: string = "litter-editor-diag-text-z-offset-spinner";
-const diagTextHOffsetSpinner: string = "litter-editor-diag-text-h-offset-spinner";
+const diagTextXOffsetSpinner: string = "litter-editor-diag-text-x-offset-spinner";
+const diagTextYOffsetSpinner: string = "litter-editor-diag-text-y-offset-spinner";
 const diagTextBiasSpinner: string = "litter-editor-diag-text-bias-spinner";
+const diagTextAlignmentDropDown: string = "litter-editor-diag-text-alignment-drop-down";
+const diagTextDirectionDropDown: string = "litter-editor-diag-text-direction-drop-down";
 
 // Track Distributor tab widget names
 const trackDistRideDropdown: string   = "litter-editor-track-dist-ride-dropdown";
@@ -63,8 +66,11 @@ let diagTextYSpacing: number = 2;
 let diagTextZSpacing: number = 2;
 let diagTextKerning: number = 2;
 let diagTextZOffset: number = 0;
-let diagTextHOffset: number = 0;
+let diagTextXOffset: number = 0;
+let diagTextYOffset: number = 0;
 let diagTextBias: number = 0;
+let diagTextAlignment: number = 0;
+let diagTextDirection: number = 0;
 
 // Track Distributor tab state
 let trackDistRideItems: string[] = [];
@@ -110,7 +116,7 @@ export class LitterEditorWindow {
 				classification: windowId,
 				title: windowTitle,
 				width: 260,
-				height: 250,
+				height: 260,
 				colours: [windowColour, windowColour],
 				tabs: [
 					{
@@ -750,44 +756,7 @@ export class LitterEditorWindow {
 								x: 10,
 								y: 55,
 								width: 240,
-								height: 170,
-								text: "Pixel Art",
-							},
-							<LabelWidget>{
-								type: "label",
-								x: 20,
-								y: 120,
-								width: 220,
-								height: widgetLineHeight,
-								textAlign: "centred",
-								text: "Under development",
-							},
-						],
-					},
-					{
-						image: {
-							frameBase: 5199, //diagonal text
-							frameCount: 8,
-							frameDuration: 4,
-						},
-						widgets: [
-							<LabelWidget>{
-								type: "label",
-								x: 0,
-								y: 232,
-								width: 260,
-								height: widgetLineHeight,
-								textAlign: "centred",
-								text: "github.com/EnoxRCT/OpenRCT2-LitterEditor",
-								tooltip: "Powered by Manticore_007 and Basssiiie",
-								isDisabled: true,
-							},
-							<GroupBoxWidget>{
-								type: "groupbox",
-								x: 10,
-								y: 55,
-								width: 240,
-								height: 170,
+								height: 185,
 								text: "Diagonal Text",
 							},
 							<LabelWidget>{
@@ -1014,11 +983,11 @@ export class LitterEditorWindow {
 								y: 180,
 								width: 55,
 								height: widgetLineHeight,
-								text: "H Offset",
+								text: "X Offset",
 								isDisabled: true,
 							},
 							<SpinnerDesc>{
-								name: diagTextHOffsetSpinner,
+								name: diagTextXOffsetSpinner,
 								type: "spinner",
 								x: 198,
 								y: 180,
@@ -1026,12 +995,12 @@ export class LitterEditorWindow {
 								height: widgetLineHeight,
 								text: "0",
 								onIncrement: () => {
-									diagTextHOffset = Math.min(128, diagTextHOffset + 1);
-									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextHOffsetSpinner).text = diagTextHOffset.toString();
+									diagTextXOffset = Math.min(128, diagTextXOffset + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextXOffsetSpinner).text = diagTextXOffset.toString();
 								},
 								onDecrement: () => {
-									diagTextHOffset = Math.max(-128, diagTextHOffset - 1);
-									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextHOffsetSpinner).text = diagTextHOffset.toString();
+									diagTextXOffset = Math.max(-128, diagTextXOffset - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextXOffsetSpinner).text = diagTextXOffset.toString();
 								},
 							},
 							<LabelWidget>{
@@ -1040,15 +1009,41 @@ export class LitterEditorWindow {
 								y: 196,
 								width: 62,
 								height: widgetLineHeight,
+								text: "Y Offset",
+								isDisabled: true,
+							},
+							<SpinnerDesc>{
+								name: diagTextYOffsetSpinner,
+								type: "spinner",
+								x: 80,
+								y: 196,
+								width: 55,
+								height: widgetLineHeight,
+								text: "0",
+								onIncrement: () => {
+									diagTextYOffset = Math.min(128, diagTextYOffset + 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextYOffsetSpinner).text = diagTextYOffset.toString();
+								},
+								onDecrement: () => {
+									diagTextYOffset = Math.max(-128, diagTextYOffset - 1);
+									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextYOffsetSpinner).text = diagTextYOffset.toString();
+								},
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 140,
+								y: 196,
+								width: 55,
+								height: widgetLineHeight,
 								text: "Bias",
 								isDisabled: true,
 							},
 							<SpinnerDesc>{
 								name: diagTextBiasSpinner,
 								type: "spinner",
-								x: 80,
+								x: 198,
 								y: 196,
-								width: 55,
+								width: 45,
 								height: widgetLineHeight,
 								text: "0",
 								onIncrement: () => {
@@ -1060,6 +1055,46 @@ export class LitterEditorWindow {
 									ui.getWindow(windowId).findWidget<SpinnerWidget>(diagTextBiasSpinner).text = diagTextBias.toString();
 								},
 							},
+							<LabelWidget>{
+								type: "label",
+								x: 15,
+								y: 212,
+								width: 62,
+								height: widgetLineHeight,
+								text: "Alignment",
+								isDisabled: true,
+							},
+							<DropdownDesc>{
+								name: diagTextAlignmentDropDown,
+								type: "dropdown",
+								x: 80,
+								y: 212,
+								width: 55,
+								height: widgetLineHeight,
+								items: ["Diag", "Grid"],
+								selectedIndex: 0,
+								onChange: (number) => { diagTextAlignment = number; },
+							},
+							<LabelWidget>{
+								type: "label",
+								x: 140,
+								y: 212,
+								width: 55,
+								height: widgetLineHeight,
+								text: "Direction",
+								isDisabled: true,
+							},
+							<DropdownDesc>{
+								name: diagTextDirectionDropDown,
+								type: "dropdown",
+								x: 198,
+								y: 212,
+								width: 45,
+								height: widgetLineHeight,
+								items: ["Horz", "Vert"],
+								selectedIndex: 0,
+								onChange: (number) => { diagTextDirection = number; },
+							},
 						],
 					},
 					{
@@ -1069,17 +1104,7 @@ export class LitterEditorWindow {
 							frameDuration: 4,
 						},
 						widgets: [
-							<LabelWidget>{
-								type: "label",
-								x: 0,
-								y: 232,
-								width: 260,
-								height: widgetLineHeight,
-								textAlign: "centred",
-								text: "github.com/EnoxRCT/OpenRCT2-LitterEditor",
-								tooltip: "Powered by Manticore_007 and Basssiiie",
-								isDisabled: true,
-							},
+							
 							<GroupBoxWidget>{
 								type: "groupbox",
 								x: 10,
@@ -1095,7 +1120,7 @@ export class LitterEditorWindow {
 								width: 220,
 								height: widgetLineHeight,
 								textAlign: "centred",
-								text: "This LitterEditor is my first expierence with coding.\n\nSpecial thanks to:\nManticore_007, Basssiiie, Smitty\nand Gymnasiast.",
+								text: "This LitterEditor is my first expierence with coding.\n\nSpecial thanks to:\nManticore_007, Basssiiie, Smitty\nand Gymnasiast.\n\ngithub.com/EnoxRCT/OpenRCT2-LitterEditor",
 							},
 						],
 					}
@@ -1497,9 +1522,10 @@ function placeDiagonalText(originCoords: CoordsXY, baseZ: number, text: string, 
 	const charAdvanceX = (CHAR_WIDTH * diagTextXSpacing) + diagTextKerning;
 	const charAdvanceY = (CHAR_WIDTH * diagTextYSpacing) + diagTextKerning;
 	const rotation = ui.mainViewport.rotation;
+	const upperText = text.toUpperCase();
 
-	for (let charIdx = 0; charIdx < text.length; charIdx++) {
-		const ch = text[charIdx];
+	for (let charIdx = 0; charIdx < upperText.length; charIdx++) {
+		const ch = upperText[charIdx];
 		const glyph = LITTER_FONT[ch] ?? LITTER_FONT[" "];
 
 		for (let row = 0; row < CHAR_HEIGHT; row++) {
@@ -1507,29 +1533,57 @@ function placeDiagonalText(originCoords: CoordsXY, baseZ: number, text: string, 
 				if (glyph[row][col] === 1) {
 					let lx: number;
 					let ly: number;
-					const dx = diagTextHOffset + (charIdx * charAdvanceX) + (col * diagTextXSpacing);
-					const dy = diagTextHOffset + (charIdx * charAdvanceY) + (col * diagTextYSpacing);
+					let lz: number;
 
-					switch (rotation) {
-						case 0:
-							lx = originCoords.x - dx;
-							ly = originCoords.y + dy;
-							break;
-						case 1:
-							lx = originCoords.x - dx;
-							ly = originCoords.y - dy;
-							break;
-						case 2:
-							lx = originCoords.x + dx;
-							ly = originCoords.y - dy;
-							break;
-						default:
-							lx = originCoords.x + dx;
-							ly = originCoords.y + dy;
-							break;
+					if (diagTextDirection === 0) {
+						// Horizontal: characters advance along X/Y; Z is level per character
+						const dx = (charIdx * charAdvanceX) + (col * diagTextXSpacing);
+						const dy = (charIdx * charAdvanceY) + (col * diagTextYSpacing);
+						if (diagTextAlignment === 0) {
+							// Diagonal: both axes advance together
+							switch (rotation) {
+								case 0: lx = originCoords.x + diagTextXOffset - dx; ly = originCoords.y + diagTextYOffset + dy; break;
+								case 1: lx = originCoords.x + diagTextXOffset - dx; ly = originCoords.y + diagTextYOffset - dy; break;
+								case 2: lx = originCoords.x + diagTextXOffset + dx; ly = originCoords.y + diagTextYOffset - dy; break;
+								default: lx = originCoords.x + diagTextXOffset + dx; ly = originCoords.y + diagTextYOffset + dy; break;
+							}
+						} else {
+							// Orthogonal: advance along a single axis (NW tile edge) per rotation
+							switch (rotation) {
+								case 0: lx = originCoords.x + diagTextXOffset; ly = originCoords.y + diagTextYOffset + dy; break;
+								case 1: lx = originCoords.x + diagTextXOffset - dx; ly = originCoords.y + diagTextYOffset; break;
+								case 2: lx = originCoords.x + diagTextXOffset; ly = originCoords.y + diagTextYOffset - dy; break;
+								default: lx = originCoords.x + diagTextXOffset + dx; ly = originCoords.y + diagTextYOffset; break;
+							}
+						}
+						lz = baseZ + diagTextZOffset + (charIdx * diagTextBias) + ((CHAR_HEIGHT - 1 - row) * diagTextZSpacing);
+					} else {
+						// Vertical: characters stack downward on Z; column spreads in X/Y; bias slants the sign
+						const colDx = (col * diagTextXSpacing) + (charIdx * diagTextBias);
+						const colDy = (col * diagTextYSpacing) + (charIdx * diagTextBias);
+						if (diagTextAlignment === 0) {
+							// Diagonal: both axes
+							switch (rotation) {
+								case 0: lx = originCoords.x + diagTextXOffset - colDx; ly = originCoords.y + diagTextYOffset + colDy; break;
+								case 1: lx = originCoords.x + diagTextXOffset - colDx; ly = originCoords.y + diagTextYOffset - colDy; break;
+								case 2: lx = originCoords.x + diagTextXOffset + colDx; ly = originCoords.y + diagTextYOffset - colDy; break;
+								default: lx = originCoords.x + diagTextXOffset + colDx; ly = originCoords.y + diagTextYOffset + colDy; break;
+							}
+						} else {
+							// Orthogonal: single axis
+							const axisAdvance = (col * diagTextXSpacing) + (charIdx * diagTextBias);
+							switch (rotation) {
+								case 0: lx = originCoords.x + diagTextXOffset; ly = originCoords.y + diagTextYOffset + axisAdvance; break;
+								case 1: lx = originCoords.x + diagTextXOffset - axisAdvance; ly = originCoords.y + diagTextYOffset; break;
+								case 2: lx = originCoords.x + diagTextXOffset; ly = originCoords.y + diagTextYOffset - axisAdvance; break;
+								default: lx = originCoords.x + diagTextXOffset + axisAdvance; ly = originCoords.y + diagTextYOffset; break;
+							}
+						}
+						lz = baseZ + diagTextZOffset
+							- (charIdx * ((CHAR_HEIGHT * diagTextZSpacing) + diagTextKerning))
+							+ ((CHAR_HEIGHT - 1 - row) * diagTextZSpacing);
 					}
 
-					const lz = baseZ + diagTextZOffset + (charIdx * diagTextBias) + ((CHAR_HEIGHT - 1 - row) * diagTextZSpacing);
 					const createdEntity = map.createEntity("litter", { x: lx, y: ly, z: lz });
 					const createdLitter = <Litter>createdEntity;
 					createdLitter.litterType = litterType;
