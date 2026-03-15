@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RCT2 Litter Image Converter</title>
+    <style>
+        body { font-family: sans-serif; background: #2b2b2b; color: #f1f1f1; padding: 20px; max-width: 650px; margin: 0 auto; line-height: 1.5; }
+        .box { background: #3c3c3c; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        h2 { margin-top: 0; color: #fff; }
+        canvas { border: 2px solid #555; image-rendering: pixelated; background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOklEQVQYV2NkYGAwYkAD////Z4QxMIxKAy4tDKOagX/f/zMwMTAwMDIwMAw2xKjmwpEG2F0gWzTjDgB1/xL829/XmAAAAABJRU5ErkJggg=='); }
+        .preview-container { text-align: center; }
+        textarea { width: 100%; height: 80px; font-family: monospace; margin-top: 10px; background: #111; color: #0f0; padding: 10px; border: 1px solid #555; border-radius: 4px; resize: vertical; box-sizing: border-box; }
+        .warning { color: #ff6b6b; font-weight: bold; margin-top: 10px; }
+        .success { color: #51cf66; font-weight: bold; margin-top: 10px; }
+        input[type="file"] { background: #222; padding: 10px; border-radius: 4px; width: 100%; box-sizing: border-box; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h2>Litter Image Palette Converter</h2>
+    
+    <div class="box">
+        <label><strong>1. Select an Image</strong></label>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Best results with pixel art. Images larger than 32x32 will be automatically scaled down.</p>
+        <input type="file" id="imageLoader" accept="image/png, image/jpeg, image/bmp"/>
+    </div>
+
+    <div class="box" style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
+        <div class="preview-container">
+            <p style="margin-top: 0;"><strong>Preview</strong></p>
+            <canvas id="previewCanvas" width="32" height="32" style="width: 128px; height: auto;"></canvas>
+            <p style="font-size: 0.8em; color: #aaa;">Scaled 4x for visibility</p>
+        </div>
+        <div style="flex-grow: 1; min-width: 250px;">
+            <p style="margin-top: 0;"><strong>2. Copy this string into OpenRCT2:</strong></p>
+            <textarea id="outputString" readonly placeholder="Upload an image to generate the string..."></textarea>
+            <div id="charCount" class="success">Length: 0 chars</div>
+            <div id="limitWarning" class="warning" style="display: none;">WARNING: Exceeds OpenRCT2's 255 character text input limit! Try a simpler or smaller image.</div>
+        </div>
+    </div>
+
+<script>
+    // Map our 12 litter types to letters A-L and approximate RGB colors for the preview
+    const PALETTE = [
+        { char: 'A', id: 0, name: 'Vomit', rgb: [124, 176, 52] },
+        { char: 'B', id: 1, name: 'Vomit Alt', rgb: [176, 103, 52] },
+        { char: 'C', id: 2, name: 'Empty Can', rgb: [194, 194, 194] },
+        { char: 'D', id: 3, name: 'Rubbish', rgb: [115, 104, 94] },
+        { char: 'E', id: 4, name: 'Burger Box', rgb: [209, 161, 52] },
+        { char: 'F', id: 5, name: 'Empty Cup', rgb: [255, 255, 255] },
+        { char: 'G', id: 6, name: 'Empty Box', rgb: [143, 104, 68] },
+        { char: 'H', id: 7, name: 'Empty Bottle', rgb: [56, 122, 65] },
+        { char: 'I', id: 8, name: 'Bowl Red', rgb: [184, 53, 53] },
+        { char: 'J', id: 9, name: 'Drink Carton', rgb: [214, 126, 193] },
+        { char: 'K', id: 10, name: 'Juice Cup', rgb: [224, 122, 38] },
+        { char: 'L', id: 11, name: 'Bowl Blue', rgb: [61, 96, 184] }
+    ];
+
+    const imageLoader = document.getElementById('imageLoader');
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const outputString = document.getElementById('outputString');
+    const charCount = document.getElementById('charCount');
+    const limitWarning = document.getElementById('limitWarning');
+
+    imageLoader.addEventListener('change', handleImage, false);
+
+    function handleImage(e) {
+        if (!e.target.files || !e.target.files[0]) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                // Resize canvas to match the image, capping at 32x32
+                const MAX_SIZE = 32;
+                let w = img.width;
+                let h = img.height;
+                if (w > MAX_SIZE || h > MAX_SIZE) {
+                    const ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
+                    w = Math.floor(w * ratio);
+                    h = Math.floor(h * ratio);
+                }
+                
+                canvas.width = w;
+                canvas.height = h;
+                
+                // Draw original image to canvas
+                ctx.drawImage(img, 0, 0, w, h);
+                
+                // Process pixels
+                processImageToRLE(w, h);
+            }
+            img.src = event.target.result;
+        }
+        reader.readAsDataURL(e.target.files[0]);
+    }
+
+    function processImageToRLE(width, height) {
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const data = imgData.data;
+        
+        let pixelArray = [];
+
+        // 1. Map all pixels to a 1D array of characters
+        for (let i = 0; i < width * height; i++) {
+            const index = i * 4;
+            const a = data[index + 3];
+
+            // If mostly transparent, mark as empty space 'X'
+            if (a < 128) {
+                pixelArray.push('X');
+                
+                // Clear the pixel on the canvas preview to show transparency
+                data[index] = 0;
+                data[index + 1] = 0;
+                data[index + 2] = 0;
+                data[index + 3] = 0;
+            } else {
+                const r = data[index];
+                const g = data[index + 1];
+                const b = data[index + 2];
+
+                let closestColor = PALETTE[0];
+                let minDistance = Infinity;
+
+                // Find closest palette color via Euclidean distance
+                for (const color of PALETTE) {
+                    const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        closestColor = color;
+                    }
+                }
+                pixelArray.push(closestColor.char);
+
+                // Overwrite the canvas pixel with the palette color
+                data[index] = closestColor.rgb[0];
+                data[index+1] = closestColor.rgb[1];
+                data[index+2] = closestColor.rgb[2];
+                data[index+3] = 255;
+            }
+        }
+
+        // Put the updated palletized pixels back onto the canvas for the user to see
+        ctx.putImageData(imgData, 0, 0);
+
+        // 2. Apply Smart RLE Compression (Implicit 1s + Continuous 1D Stream)
+        let compressedData = "";
+        let count = 1;
+        
+        for (let i = 1; i <= pixelArray.length; i++) {
+            if (pixelArray[i] === pixelArray[i - 1]) {
+                count++;
+            } else {
+                // If count is 1, don't write the number. Just write the letter!
+                compressedData += (count > 1 ? count : "") + pixelArray[i - 1];
+                count = 1; // reset counter
+            }
+        }
+
+        // 3. Prepend the width so the OpenRCT2 decoder knows where to wrap lines
+        const finalString = `${width}:${compressedData}`;
+
+        // Update the UI
+        outputString.value = finalString;
+        const length = finalString.length;
+        charCount.innerText = `Length: ${length} chars`;
+        
+        if (length > 255) {
+            charCount.className = "warning";
+            limitWarning.style.display = "block";
+        } else {
+            charCount.className = "success";
+            limitWarning.style.display = "none";
+        }
+
+        // Auto-select text for easy copying
+        outputString.select();
+    }
+</script>
+
+</body>
+</html>
