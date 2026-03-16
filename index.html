@@ -23,11 +23,11 @@
     
     <div class="box">
         <label><strong>1. Select an Image</strong></label>
-        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Images larger than 32x32 will be scaled down using Nearest-Neighbor (no blurring).</p>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Uses "Majority Vote" downsampling to eliminate noisy edges on logos!</p>
         <input type="file" id="imageLoader" accept="image/png, image/jpeg, image/bmp"/>
         <div class="controls">
             <input type="checkbox" id="ignoreWhite" checked> 
-            <label for="ignoreWhite">Aggressively Ignore Light Backgrounds (Kills anti-aliasing noise)</label>
+            <label for="ignoreWhite">Aggressively Ignore Light Backgrounds</label>
         </div>
     </div>
 
@@ -85,8 +85,29 @@
         reader.readAsDataURL(e.target.files[0]);
     }
 
+    // Helper: Find closest palette color for a single RGB pixel
+    function getClosestPaletteChar(r, g, b) {
+        const FUZZINESS = 70.0;
+        let snappedColor = null;
+        
+        for (const color of PALETTE) {
+            const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
+            if (dist <= FUZZINESS) { snappedColor = color; break; }
+        }
+        
+        if (!snappedColor) {
+            let closest = PALETTE[0], minD = Infinity;
+            for (const color of PALETTE) {
+                const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
+                if (dist < minD) { minD = dist; closest = color; }
+            }
+            snappedColor = closest;
+        }
+        return snappedColor;
+    }
+
     function processImage(img) {
-        // 1. Calculate Target Size
+        // 1. Calculate Target Grid Size (Max 32x32)
         const MAX_SIZE = 32;
         let w = img.width, h = img.height;
         if (w > MAX_SIZE || h > MAX_SIZE) {
@@ -96,7 +117,7 @@
         }
         canvas.width = w; canvas.height = h;
         
-        // 2. Draw original image to an OFFSCREEN canvas at full resolution
+        // 2. Draw original high-res image to an offscreen canvas
         const offCanvas = document.createElement('canvas');
         offCanvas.width = img.width; offCanvas.height = img.height;
         const offCtx = offCanvas.getContext('2d');
@@ -106,42 +127,61 @@
         const imgData = ctx.createImageData(w, h);
         const data = imgData.data;
         const ignoreWhite = ignoreWhiteCb.checked;
-        const FUZZINESS = 70.0; 
+
+        // Calculate the high-res bounding box size for each target cell
+        const cellW = img.width / w;
+        const cellH = img.height / h;
 
         let chars2D = [];
         
-        // 3. Manual Nearest-Neighbor sampling (Bypasses browser blurring)
+        // 3. MAJORITY VOTE DOWNSAMPLING
         for (let y = 0; y < h; y++) {
             let row = [];
             for (let x = 0; x < w; x++) {
-                const srcX = Math.floor(x * (img.width / w));
-                const srcY = Math.floor(y * (img.height / h));
-                const srcI = (srcY * img.width + srcX) * 4;
+                
+                // Track votes for colors in this specific cell
+                let votes = { 'X': 0 };
+                PALETTE.forEach(p => votes[p.char] = 0);
 
-                const r = srcData[srcI], g = srcData[srcI+1], b = srcData[srcI+2], a = srcData[srcI+3];
+                // Scan all high-res pixels that fall inside this cell
+                const startX = Math.floor(x * cellW);
+                const endX = Math.floor((x + 1) * cellW);
+                const startY = Math.floor(y * cellH);
+                const endY = Math.floor((y + 1) * cellH);
+
+                for (let py = startY; py < endY; py++) {
+                    for (let px = startX; px < endX; px++) {
+                        const srcI = (py * img.width + px) * 4;
+                        const pr = srcData[srcI], pg = srcData[srcI+1], pb = srcData[srcI+2], pa = srcData[srcI+3];
+
+                        if (pa < 128 || (ignoreWhite && ((pr + pg + pb) / 3 > 200))) {
+                            votes['X']++;
+                        } else {
+                            const pChar = getClosestPaletteChar(pr, pg, pb).char;
+                            votes[pChar]++;
+                        }
+                    }
+                }
+
+                // Find the winner!
+                let winningChar = 'X';
+                let maxVotes = -1;
+                for (const [char, count] of Object.entries(votes)) {
+                    if (count > maxVotes) {
+                        maxVotes = count;
+                        winningChar = char;
+                    }
+                }
+
+                row.push(winningChar);
+
+                // Draw the winning color to the preview canvas
                 const dstI = (y * w + x) * 4;
-
-                // Aggressively ignore light backgrounds if checked (avg RGB > 200)
-                if (a < 128 || (ignoreWhite && ((r + g + b) / 3 > 200))) {
-                    row.push('X');
+                if (winningChar === 'X') {
                     data[dstI] = 0; data[dstI+1] = 0; data[dstI+2] = 0; data[dstI+3] = 0;
                 } else {
-                    let snappedColor = null;
-                    for (const color of PALETTE) {
-                        const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
-                        if (dist <= FUZZINESS) { snappedColor = color; break; }
-                    }
-                    if (!snappedColor) {
-                        let closest = PALETTE[0], minD = Infinity;
-                        for (const color of PALETTE) {
-                            const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
-                            if (dist < minD) { minD = dist; closest = color; }
-                        }
-                        snappedColor = closest;
-                    }
-
-                    row.push(snappedColor.char);
-                    data[dstI] = snappedColor.rgb[0]; data[dstI+1] = snappedColor.rgb[1]; data[dstI+2] = snappedColor.rgb[2]; data[dstI+3] = 255;
+                    const winColor = PALETTE.find(p => p.char === winningChar);
+                    data[dstI] = winColor.rgb[0]; data[dstI+1] = winColor.rgb[1]; data[dstI+2] = winColor.rgb[2]; data[dstI+3] = 255;
                 }
             }
             chars2D.push(row);
