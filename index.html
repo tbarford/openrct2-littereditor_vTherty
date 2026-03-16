@@ -23,11 +23,11 @@
     
     <div class="box">
         <label><strong>1. Select an Image</strong></label>
-        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Best results with simple pixel art or logos with transparent backgrounds. Empty space is automatically cropped!</p>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Images larger than 32x32 will be scaled down using Nearest-Neighbor (no blurring).</p>
         <input type="file" id="imageLoader" accept="image/png, image/jpeg, image/bmp"/>
         <div class="controls">
             <input type="checkbox" id="ignoreWhite" checked> 
-            <label for="ignoreWhite">Treat White Backgrounds as Transparent (Reduces noise)</label>
+            <label for="ignoreWhite">Aggressively Ignore Light Backgrounds (Kills anti-aliasing noise)</label>
         </div>
     </div>
 
@@ -86,7 +86,7 @@
     }
 
     function processImage(img) {
-        // 1. Resize to max 32x32
+        // 1. Calculate Target Size
         const MAX_SIZE = 32;
         let w = img.width, h = img.height;
         if (w > MAX_SIZE || h > MAX_SIZE) {
@@ -96,36 +96,41 @@
         }
         canvas.width = w; canvas.height = h;
         
-        // Turn off smoothing to keep edges as harsh as possible when downsampling
-        ctx.imageSmoothingEnabled = false; 
-        ctx.drawImage(img, 0, 0, w, h);
-        
-        const imgData = ctx.getImageData(0, 0, w, h);
+        // 2. Draw original image to an OFFSCREEN canvas at full resolution
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = img.width; offCanvas.height = img.height;
+        const offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(img, 0, 0);
+        const srcData = offCtx.getImageData(0, 0, img.width, img.height).data;
+
+        const imgData = ctx.createImageData(w, h);
         const data = imgData.data;
         const ignoreWhite = ignoreWhiteCb.checked;
-        const FUZZINESS_THRESHOLD = 60.0; 
+        const FUZZINESS = 70.0; 
 
         let chars2D = [];
         
-        // 2. Map colors to palette
+        // 3. Manual Nearest-Neighbor sampling (Bypasses browser blurring)
         for (let y = 0; y < h; y++) {
             let row = [];
             for (let x = 0; x < w; x++) {
-                const i = (y * w + x) * 4;
-                const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                const srcX = Math.floor(x * (img.width / w));
+                const srcY = Math.floor(y * (img.height / h));
+                const srcI = (srcY * img.width + srcX) * 4;
 
-                // Check alpha OR if user wants to ignore white (RGB all > 230)
-                if (a < 128 || (ignoreWhite && r > 230 && g > 230 && b > 230)) {
+                const r = srcData[srcI], g = srcData[srcI+1], b = srcData[srcI+2], a = srcData[srcI+3];
+                const dstI = (y * w + x) * 4;
+
+                // Aggressively ignore light backgrounds if checked (avg RGB > 200)
+                if (a < 128 || (ignoreWhite && ((r + g + b) / 3 > 200))) {
                     row.push('X');
-                    data[i] = 0; data[i+1] = 0; data[i+2] = 0; data[i+3] = 0;
+                    data[dstI] = 0; data[dstI+1] = 0; data[dstI+2] = 0; data[dstI+3] = 0;
                 } else {
                     let snappedColor = null;
-                    // Try to fuzzy snap
                     for (const color of PALETTE) {
                         const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
-                        if (dist <= FUZZINESS_THRESHOLD) { snappedColor = color; break; }
+                        if (dist <= FUZZINESS) { snappedColor = color; break; }
                     }
-                    // Fallback to literal closest
                     if (!snappedColor) {
                         let closest = PALETTE[0], minD = Infinity;
                         for (const color of PALETTE) {
@@ -136,7 +141,7 @@
                     }
 
                     row.push(snappedColor.char);
-                    data[i] = snappedColor.rgb[0]; data[i+1] = snappedColor.rgb[1]; data[i+2] = snappedColor.rgb[2]; data[i+3] = 255;
+                    data[dstI] = snappedColor.rgb[0]; data[dstI+1] = snappedColor.rgb[1]; data[dstI+2] = snappedColor.rgb[2]; data[dstI+3] = 255;
                 }
             }
             chars2D.push(row);
@@ -144,7 +149,7 @@
 
         ctx.putImageData(imgData, 0, 0);
 
-        // 3. Auto-Crop to Bounds!
+        // 4. Auto-Crop to Bounds
         let minX = w, maxX = -1, minY = h, maxY = -1;
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
@@ -165,14 +170,13 @@
         const croppedW = maxX - minX + 1;
         let pixelArray = [];
         
-        // Flatten the cropped 2D array back into a 1D array for RLE
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 pixelArray.push(chars2D[y][x]);
             }
         }
 
-        // 4. Smart RLE Compression
+        // 5. Smart RLE Compression
         let compressedData = "";
         let count = 1;
         for (let i = 1; i <= pixelArray.length; i++) {
@@ -184,7 +188,6 @@
             }
         }
 
-        // Prepend the *cropped* width
         const finalString = `${croppedW}:${compressedData}`;
 
         outputString.value = finalString;
