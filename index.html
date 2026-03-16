@@ -3,224 +3,157 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCT2 Litter Image Converter</title>
+    <title>RCT2 Litter Image Encoder</title>
     <style>
-        body { font-family: sans-serif; background: #2b2b2b; color: #f1f1f1; padding: 20px; max-width: 650px; margin: 0 auto; line-height: 1.5; }
+        body { font-family: sans-serif; background: #2b2b2b; color: #f1f1f1; padding: 20px; max-width: 800px; margin: 0 auto; line-height: 1.5; }
         .box { background: #3c3c3c; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        h2 { margin-top: 0; color: #fff; }
-        canvas { border: 2px solid #555; image-rendering: pixelated; background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOklEQVQYV2NkYGAwYkAD////Z4QxMIxKAy4tDKOagX/f/zMwMTAwMDIwMAw2xKjmwpEG2F0gWzTjDgB1/xL829/XmAAAAABJRU5ErkJggg=='); }
-        .preview-container { text-align: center; }
-        textarea { width: 100%; height: 80px; font-family: monospace; margin-top: 10px; background: #111; color: #0f0; padding: 10px; border: 1px solid #555; border-radius: 4px; resize: vertical; box-sizing: border-box; }
-        .warning { color: #ff6b6b; font-weight: bold; margin-top: 10px; }
+        h2, h3 { margin-top: 0; color: #fff; }
+        canvas { border: 2px solid #555; image-rendering: pixelated; background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOklEQVQYV2NkYGAwYkAD////Z4QxMIxKAy4tDKOagX/f/zMwMTAwMDIwMAw2xKjmwpEG2F0gWzTjDgB1/xL829/XmAAAAABJRU5ErkJggg=='); max-width: 100%; height: auto; }
+        textarea { width: 100%; height: 100px; font-family: monospace; margin-top: 10px; background: #111; color: #0f0; padding: 10px; border: 1px solid #555; border-radius: 4px; resize: vertical; box-sizing: border-box; }
+        .warning { color: #ff6b6b; font-weight: bold; margin-top: 10px; padding: 10px; border: 1px solid #ff6b6b; border-radius: 4px; background: rgba(255, 107, 107, 0.1); }
         .success { color: #51cf66; font-weight: bold; margin-top: 10px; }
         input[type="file"] { background: #222; padding: 10px; border-radius: 4px; width: 100%; box-sizing: border-box; cursor: pointer; margin-bottom: 10px; }
-        .controls { display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        
+        /* Palette Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #555; }
+        th { background: #222; }
+        .color-swatch { width: 24px; height: 24px; border-radius: 4px; border: 1px solid #000; display: inline-block; vertical-align: middle; }
     </style>
 </head>
 <body>
 
-    <h2>Litter Image Palette Converter</h2>
+    <h2>Litter Image Encoder</h2>
     
     <div class="box">
-        <label><strong>1. Select an Image</strong></label>
-        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Uses "Foreground Priority" downsampling to preserve thin lines and edges!</p>
-        <input type="file" id="imageLoader" accept="image/png, image/jpeg, image/bmp"/>
-        <div class="controls">
-            <input type="checkbox" id="ignoreWhite" checked> 
-            <label for="ignoreWhite">Ignore Pure White Backgrounds</label>
-        </div>
+        <h3>1. Upload 1:1 Pixel Art</h3>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 0;">Upload pre-scaled pixel art. <strong>Images are NOT resized.</strong> Use the exact palette colors below for best results. Transparent pixels will be ignored.</p>
+        <input type="file" id="imageLoader" accept="image/png, image/bmp"/>
     </div>
 
     <div class="box" style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
-        <div class="preview-container">
-            <p style="margin-top: 0;"><strong>Preview</strong></p>
-            <canvas id="previewCanvas" width="32" height="32" style="width: 128px; height: auto;"></canvas>
-            <p style="font-size: 0.8em; color: #aaa;">Scaled 4x for visibility</p>
+        <div style="flex: 0 0 auto; text-align: center;">
+            <p style="margin-top: 0; text-align: left;"><strong>Preview (Palletized)</strong></p>
+            <canvas id="previewCanvas"></canvas>
         </div>
         <div style="flex-grow: 1; min-width: 250px;">
             <p style="margin-top: 0;"><strong>2. Copy this string into OpenRCT2:</strong></p>
             <textarea id="outputString" readonly placeholder="Upload an image to generate the string..."></textarea>
             <div id="charCount" class="success">Length: 0 chars</div>
-            <div id="limitWarning" class="warning" style="display: none;">WARNING: Exceeds OpenRCT2's 255 character limit! Try a simpler image.</div>
+            <div id="limitWarning" class="warning" style="display: none;">
+                WARNING: String exceeds OpenRCT2's 255 character limit!<br>
+                <span style="font-size: 0.9em; font-weight: normal;">You will need to manually stitch this together in-game using multiple text boxes and the X/Y Offset tools.</span>
+            </div>
         </div>
     </div>
 
+    <div class="box">
+        <h3>Litter Color Reference</h3>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 0;">Set your image editor to use these specific colors to ensure clean compression.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Swatch</th>
+                    <th>Litter Type</th>
+                    <th>Hex</th>
+                    <th>RGB</th>
+                </tr>
+            </thead>
+            <tbody id="paletteTableBody">
+                </tbody>
+        </table>
+    </div>
+
 <script>
+    // The exact litter palette
     const PALETTE = [
-        { char: 'A', id: 0, name: 'Vomit', rgb: [124, 176, 52] },
-        { char: 'B', id: 1, name: 'Vomit Alt', rgb: [176, 103, 52] },
-        { char: 'C', id: 2, name: 'Empty Can', rgb: [194, 194, 194] },
-        { char: 'D', id: 3, name: 'Rubbish', rgb: [115, 104, 94] },
-        { char: 'E', id: 4, name: 'Burger Box', rgb: [209, 161, 52] },
-        { char: 'F', id: 5, name: 'Empty Cup', rgb: [255, 255, 255] },
-        { char: 'G', id: 6, name: 'Empty Box', rgb: [143, 104, 68] },
-        { char: 'H', id: 7, name: 'Empty Bottle', rgb: [56, 122, 65] },
-        { char: 'I', id: 8, name: 'Bowl Red', rgb: [184, 53, 53] },
-        { char: 'J', id: 9, name: 'Drink Carton', rgb: [214, 126, 193] },
-        { char: 'K', id: 10, name: 'Juice Cup', rgb: [224, 122, 38] },
-        { char: 'L', id: 11, name: 'Bowl Blue', rgb: [61, 96, 184] }
+        { char: 'A', name: 'Vomit', hex: '#7CB034', rgb: [124, 176, 52] },
+        { char: 'B', name: 'Vomit Alt', hex: '#B06734', rgb: [176, 103, 52] },
+        { char: 'C', name: 'Empty Can', hex: '#C2C2C2', rgb: [194, 194, 194] },
+        { char: 'D', name: 'Rubbish', hex: '#73685E', rgb: [115, 104, 94] },
+        { char: 'E', name: 'Burger Box', hex: '#D1A134', rgb: [209, 161, 52] },
+        { char: 'F', name: 'Empty Cup', hex: '#FFFFFF', rgb: [255, 255, 255] },
+        { char: 'G', name: 'Empty Box', hex: '#8F6844', rgb: [143, 104, 68] },
+        { char: 'H', name: 'Empty Bottle', hex: '#387A41', rgb: [56, 122, 65] },
+        { char: 'I', name: 'Bowl Red', hex: '#B83535', rgb: [184, 53, 53] },
+        { char: 'J', name: 'Drink Carton', hex: '#D67EC1', rgb: [214, 126, 193] },
+        { char: 'K', name: 'Juice Cup', hex: '#E07A26', rgb: [224, 122, 38] },
+        { char: 'L', name: 'Bowl Blue', hex: '#3D60B8', rgb: [61, 96, 184] }
     ];
 
+    // Populate the reference table
+    const tbody = document.getElementById('paletteTableBody');
+    PALETTE.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><div class="color-swatch" style="background-color: ${p.hex};"></div></td>
+            <td>${p.name}</td>
+            <td style="font-family: monospace;">${p.hex}</td>
+            <td style="font-family: monospace;">${p.rgb.join(', ')}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
     const imageLoader = document.getElementById('imageLoader');
-    const ignoreWhiteCb = document.getElementById('ignoreWhite');
     const canvas = document.getElementById('previewCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const outputString = document.getElementById('outputString');
     const charCount = document.getElementById('charCount');
     const limitWarning = document.getElementById('limitWarning');
 
-    let currentImg = null;
-
     imageLoader.addEventListener('change', handleImage, false);
-    ignoreWhiteCb.addEventListener('change', () => { if(currentImg) processImage(currentImg); });
 
     function handleImage(e) {
         if (!e.target.files || !e.target.files[0]) return;
         const reader = new FileReader();
         reader.onload = function(event) {
-            currentImg = new Image();
-            currentImg.onload = function() { processImage(currentImg); }
-            currentImg.src = event.target.result;
+            const img = new Image();
+            img.onload = function() { processImage(img); }
+            img.src = event.target.result;
         }
         reader.readAsDataURL(e.target.files[0]);
     }
 
-    function getClosestPaletteChar(r, g, b) {
-        const FUZZINESS = 70.0;
-        let snappedColor = null;
-        
-        for (const color of PALETTE) {
-            const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
-            if (dist <= FUZZINESS) { snappedColor = color; break; }
-        }
-        
-        if (!snappedColor) {
-            let closest = PALETTE[0], minD = Infinity;
-            for (const color of PALETTE) {
-                const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
-                if (dist < minD) { minD = dist; closest = color; }
-            }
-            snappedColor = closest;
-        }
-        return snappedColor;
-    }
-
     function processImage(img) {
-        const MAX_SIZE = 32;
-        let w = img.width, h = img.height;
-        if (w > MAX_SIZE || h > MAX_SIZE) {
-            const ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
-            w = Math.floor(w * ratio);
-            h = Math.floor(h * ratio);
-        }
-        canvas.width = w; canvas.height = h;
+        // STRICT 1:1 SIZING (No downsampling, no magic)
+        const w = img.width;
+        const h = img.height;
+        canvas.width = w;
+        canvas.height = h;
         
-        const offCanvas = document.createElement('canvas');
-        offCanvas.width = img.width; offCanvas.height = img.height;
-        const offCtx = offCanvas.getContext('2d');
-        offCtx.drawImage(img, 0, 0);
-        const srcData = offCtx.getImageData(0, 0, img.width, img.height).data;
-
-        const imgData = ctx.createImageData(w, h);
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, w, h);
         const data = imgData.data;
-        const ignoreWhite = ignoreWhiteCb.checked;
 
-        const cellW = img.width / w;
-        const cellH = img.height / h;
-
-        let chars2D = [];
+        let pixelArray = [];
         
-        for (let y = 0; y < h; y++) {
-            let row = [];
-            for (let x = 0; x < w; x++) {
-                
-                let votes = { 'X': 0 };
-                PALETTE.forEach(p => votes[p.char] = 0);
-                let totalPixelsInCell = 0;
+        // Map colors (with Euclidean safety net for slight hex variations)
+        for (let i = 0; i < w * h; i++) {
+            const idx = i * 4;
+            const r = data[idx], g = data[idx+1], b = data[idx+2], a = data[idx+3];
 
-                const startX = Math.floor(x * cellW);
-                const endX = Math.floor((x + 1) * cellW);
-                const startY = Math.floor(y * cellH);
-                const endY = Math.floor((y + 1) * cellH);
-
-                for (let py = startY; py < endY; py++) {
-                    for (let px = startX; px < endX; px++) {
-                        totalPixelsInCell++;
-                        const srcI = (py * img.width + px) * 4;
-                        const pr = srcData[srcI], pg = srcData[srcI+1], pb = srcData[srcI+2], pa = srcData[srcI+3];
-
-                        // Dialed back the white ignore to 240 (almost pure white)
-                        if (pa < 128 || (ignoreWhite && pr > 240 && pg > 240 && pb > 240)) {
-                            votes['X']++;
-                        } else {
-                            const pChar = getClosestPaletteChar(pr, pg, pb).char;
-                            votes[pChar]++;
-                        }
-                    }
+            // If transparent, mark as empty space 'X'
+            if (a < 128) {
+                pixelArray.push('X');
+                data[idx] = 0; data[idx+1] = 0; data[idx+2] = 0; data[idx+3] = 0;
+            } else {
+                let closest = PALETTE[0];
+                let minD = Infinity;
+                for (const color of PALETTE) {
+                    const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
+                    if (dist < minD) { minD = dist; closest = color; }
                 }
 
-                // --- FOREGROUND PRIORITY VOTING ---
-                let winningChar = 'X';
-                let maxLitterVotes = 0;
-                let winningLitterChar = null;
+                pixelArray.push(closest.char);
 
-                // Find the most popular real color
-                for (const [char, count] of Object.entries(votes)) {
-                    if (char !== 'X' && count > maxLitterVotes) {
-                        maxLitterVotes = count;
-                        winningLitterChar = char;
-                    }
-                }
-
-                // If a real color makes up at least 15% of the cell, it wins! 
-                // This preserves thin lines from being eroded by empty space.
-                if (winningLitterChar && maxLitterVotes >= (totalPixelsInCell * 0.15)) {
-                    winningChar = winningLitterChar;
-                } else {
-                    winningChar = 'X';
-                }
-
-                row.push(winningChar);
-
-                const dstI = (y * w + x) * 4;
-                if (winningChar === 'X') {
-                    data[dstI] = 0; data[dstI+1] = 0; data[dstI+2] = 0; data[dstI+3] = 0;
-                } else {
-                    const winColor = PALETTE.find(p => p.char === winningChar);
-                    data[dstI] = winColor.rgb[0]; data[dstI+1] = winColor.rgb[1]; data[dstI+2] = winColor.rgb[2]; data[dstI+3] = 255;
-                }
+                // Update preview canvas with exact matched color
+                data[idx] = closest.rgb[0]; data[idx+1] = closest.rgb[1]; data[idx+2] = closest.rgb[2]; data[idx+3] = 255;
             }
-            chars2D.push(row);
         }
 
         ctx.putImageData(imgData, 0, 0);
 
-        let minX = w, maxX = -1, minY = h, maxY = -1;
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-                if (chars2D[y][x] !== 'X') {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-            }
-        }
-
-        if (maxX === -1) {
-            outputString.value = "Image is completely empty or transparent.";
-            return;
-        }
-
-        const croppedW = maxX - minX + 1;
-        let pixelArray = [];
-        
-        for (let y = minY; y <= maxY; y++) {
-            for (let x = minX; x <= maxX; x++) {
-                pixelArray.push(chars2D[y][x]);
-            }
-        }
-
+        // Smart RLE Compression
         let compressedData = "";
         let count = 1;
         for (let i = 1; i <= pixelArray.length; i++) {
@@ -232,7 +165,8 @@
             }
         }
 
-        const finalString = `${croppedW}:${compressedData}`;
+        // Prepend the raw width so the in-game decoder knows when to wrap
+        const finalString = `${w}:${compressedData}`;
 
         outputString.value = finalString;
         const len = finalString.length;
@@ -245,6 +179,7 @@
             charCount.className = "success";
             limitWarning.style.display = "none";
         }
+        
         outputString.select();
     }
 </script>
