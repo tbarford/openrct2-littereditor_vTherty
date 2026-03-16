@@ -23,11 +23,11 @@
     
     <div class="box">
         <label><strong>1. Select an Image</strong></label>
-        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Uses "Majority Vote" downsampling to eliminate noisy edges on logos!</p>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 5px;">Uses "Foreground Priority" downsampling to preserve thin lines and edges!</p>
         <input type="file" id="imageLoader" accept="image/png, image/jpeg, image/bmp"/>
         <div class="controls">
             <input type="checkbox" id="ignoreWhite" checked> 
-            <label for="ignoreWhite">Aggressively Ignore Light Backgrounds</label>
+            <label for="ignoreWhite">Ignore Pure White Backgrounds</label>
         </div>
     </div>
 
@@ -85,7 +85,6 @@
         reader.readAsDataURL(e.target.files[0]);
     }
 
-    // Helper: Find closest palette color for a single RGB pixel
     function getClosestPaletteChar(r, g, b) {
         const FUZZINESS = 70.0;
         let snappedColor = null;
@@ -107,7 +106,6 @@
     }
 
     function processImage(img) {
-        // 1. Calculate Target Grid Size (Max 32x32)
         const MAX_SIZE = 32;
         let w = img.width, h = img.height;
         if (w > MAX_SIZE || h > MAX_SIZE) {
@@ -117,7 +115,6 @@
         }
         canvas.width = w; canvas.height = h;
         
-        // 2. Draw original high-res image to an offscreen canvas
         const offCanvas = document.createElement('canvas');
         offCanvas.width = img.width; offCanvas.height = img.height;
         const offCtx = offCanvas.getContext('2d');
@@ -128,22 +125,19 @@
         const data = imgData.data;
         const ignoreWhite = ignoreWhiteCb.checked;
 
-        // Calculate the high-res bounding box size for each target cell
         const cellW = img.width / w;
         const cellH = img.height / h;
 
         let chars2D = [];
         
-        // 3. MAJORITY VOTE DOWNSAMPLING
         for (let y = 0; y < h; y++) {
             let row = [];
             for (let x = 0; x < w; x++) {
                 
-                // Track votes for colors in this specific cell
                 let votes = { 'X': 0 };
                 PALETTE.forEach(p => votes[p.char] = 0);
+                let totalPixelsInCell = 0;
 
-                // Scan all high-res pixels that fall inside this cell
                 const startX = Math.floor(x * cellW);
                 const endX = Math.floor((x + 1) * cellW);
                 const startY = Math.floor(y * cellH);
@@ -151,10 +145,12 @@
 
                 for (let py = startY; py < endY; py++) {
                     for (let px = startX; px < endX; px++) {
+                        totalPixelsInCell++;
                         const srcI = (py * img.width + px) * 4;
                         const pr = srcData[srcI], pg = srcData[srcI+1], pb = srcData[srcI+2], pa = srcData[srcI+3];
 
-                        if (pa < 128 || (ignoreWhite && ((pr + pg + pb) / 3 > 200))) {
+                        // Dialed back the white ignore to 240 (almost pure white)
+                        if (pa < 128 || (ignoreWhite && pr > 240 && pg > 240 && pb > 240)) {
                             votes['X']++;
                         } else {
                             const pChar = getClosestPaletteChar(pr, pg, pb).char;
@@ -163,19 +159,29 @@
                     }
                 }
 
-                // Find the winner!
+                // --- FOREGROUND PRIORITY VOTING ---
                 let winningChar = 'X';
-                let maxVotes = -1;
+                let maxLitterVotes = 0;
+                let winningLitterChar = null;
+
+                // Find the most popular real color
                 for (const [char, count] of Object.entries(votes)) {
-                    if (count > maxVotes) {
-                        maxVotes = count;
-                        winningChar = char;
+                    if (char !== 'X' && count > maxLitterVotes) {
+                        maxLitterVotes = count;
+                        winningLitterChar = char;
                     }
+                }
+
+                // If a real color makes up at least 15% of the cell, it wins! 
+                // This preserves thin lines from being eroded by empty space.
+                if (winningLitterChar && maxLitterVotes >= (totalPixelsInCell * 0.15)) {
+                    winningChar = winningLitterChar;
+                } else {
+                    winningChar = 'X';
                 }
 
                 row.push(winningChar);
 
-                // Draw the winning color to the preview canvas
                 const dstI = (y * w + x) * 4;
                 if (winningChar === 'X') {
                     data[dstI] = 0; data[dstI+1] = 0; data[dstI+2] = 0; data[dstI+3] = 0;
@@ -189,7 +195,6 @@
 
         ctx.putImageData(imgData, 0, 0);
 
-        // 4. Auto-Crop to Bounds
         let minX = w, maxX = -1, minY = h, maxY = -1;
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
@@ -216,7 +221,6 @@
             }
         }
 
-        // 5. Smart RLE Compression
         let compressedData = "";
         let count = 1;
         for (let i = 1; i <= pixelArray.length; i++) {
