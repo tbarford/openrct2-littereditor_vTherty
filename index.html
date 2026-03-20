@@ -16,9 +16,13 @@
         
         /* Palette Table Styles */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
-        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #555; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #555; vertical-align: middle; }
         th { background: #222; }
         .color-swatch { width: 24px; height: 24px; border-radius: 4px; border: 1px solid #000; display: inline-block; vertical-align: middle; }
+        .sprite-preview { width: 32px; height: 32px; image-rendering: pixelated; object-fit: contain; }
+        
+        .chroma-controls { display: flex; align-items: center; gap: 10px; background: #222; padding: 10px; border-radius: 4px; margin-top: 10px; }
+        input[type="color"] { border: none; width: 40px; height: 30px; cursor: pointer; background: none; }
     </style>
 </head>
 <body>
@@ -27,8 +31,15 @@
     
     <div class="box">
         <h3>1. Upload 1:1 Pixel Art</h3>
-        <p style="font-size: 0.9em; color: #ccc; margin-top: 0;">Upload pre-scaled pixel art. <strong>Images are NOT resized.</strong> Use the exact palette colors below for best results. Transparent pixels will be ignored.</p>
-        <input type="file" id="imageLoader" accept="image/png, image/bmp"/>
+        <p style="font-size: 0.9em; color: #ccc; margin-top: 0;">Upload pre-scaled pixel art. <strong>Images are NOT resized.</strong></p>
+        <input type="file" id="imageLoader" accept="image/png, image/bmp, image/jpeg"/>
+        
+        <div class="chroma-controls">
+            <input type="checkbox" id="useChromaKey" checked>
+            <label for="useChromaKey"><strong>Discard Background Color:</strong></label>
+            <input type="color" id="chromaKeyColor" value="#000000" title="Select the background color to erase">
+            <span style="font-size: 0.8em; color: #aaa;">(Default: Pure Black)</span>
+        </div>
     </div>
 
     <div class="box" style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
@@ -53,7 +64,8 @@
         <table>
             <thead>
                 <tr>
-                    <th>Swatch</th>
+                    <th>Sprite</th>
+                    <th>Color</th>
                     <th>Litter Type</th>
                     <th>Hex</th>
                     <th>RGB</th>
@@ -65,124 +77,18 @@
     </div>
 
 <script>
-    // The exact litter palette
+    const placeholderBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
     const PALETTE = [
-        { char: 'A', name: 'Vomit', hex: '#7CB034', rgb: [124, 176, 52] },
-        { char: 'B', name: 'Vomit Alt', hex: '#B06734', rgb: [176, 103, 52] },
-        { char: 'C', name: 'Empty Can', hex: '#C2C2C2', rgb: [194, 194, 194] },
-        { char: 'D', name: 'Rubbish', hex: '#73685E', rgb: [115, 104, 94] },
-        { char: 'E', name: 'Burger Box', hex: '#D1A134', rgb: [209, 161, 52] },
-        { char: 'F', name: 'Empty Cup', hex: '#FFFFFF', rgb: [255, 255, 255] },
-        { char: 'G', name: 'Empty Box', hex: '#8F6844', rgb: [143, 104, 68] },
-        { char: 'H', name: 'Empty Bottle', hex: '#387A41', rgb: [56, 122, 65] },
-        { char: 'I', name: 'Bowl Red', hex: '#B83535', rgb: [184, 53, 53] },
-        { char: 'J', name: 'Drink Carton', hex: '#D67EC1', rgb: [214, 126, 193] },
-        { char: 'K', name: 'Juice Cup', hex: '#E07A26', rgb: [224, 122, 38] },
-        { char: 'L', name: 'Bowl Blue', hex: '#3D60B8', rgb: [61, 96, 184] }
-    ];
-
-    // Populate the reference table
-    const tbody = document.getElementById('paletteTableBody');
-    PALETTE.forEach(p => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><div class="color-swatch" style="background-color: ${p.hex};"></div></td>
-            <td>${p.name}</td>
-            <td style="font-family: monospace;">${p.hex}</td>
-            <td style="font-family: monospace;">${p.rgb.join(', ')}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-
-    const imageLoader = document.getElementById('imageLoader');
-    const canvas = document.getElementById('previewCanvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const outputString = document.getElementById('outputString');
-    const charCount = document.getElementById('charCount');
-    const limitWarning = document.getElementById('limitWarning');
-
-    imageLoader.addEventListener('change', handleImage, false);
-
-    function handleImage(e) {
-        if (!e.target.files || !e.target.files[0]) return;
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const img = new Image();
-            img.onload = function() { processImage(img); }
-            img.src = event.target.result;
-        }
-        reader.readAsDataURL(e.target.files[0]);
-    }
-
-    function processImage(img) {
-        // STRICT 1:1 SIZING (No downsampling, no magic)
-        const w = img.width;
-        const h = img.height;
-        canvas.width = w;
-        canvas.height = h;
-        
-        ctx.drawImage(img, 0, 0);
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const data = imgData.data;
-
-        let pixelArray = [];
-        
-        // Map colors (with Euclidean safety net for slight hex variations)
-        for (let i = 0; i < w * h; i++) {
-            const idx = i * 4;
-            const r = data[idx], g = data[idx+1], b = data[idx+2], a = data[idx+3];
-
-            // If transparent, mark as empty space 'X'
-            if (a < 128) {
-                pixelArray.push('X');
-                data[idx] = 0; data[idx+1] = 0; data[idx+2] = 0; data[idx+3] = 0;
-            } else {
-                let closest = PALETTE[0];
-                let minD = Infinity;
-                for (const color of PALETTE) {
-                    const dist = Math.sqrt(Math.pow(r - color.rgb[0], 2) + Math.pow(g - color.rgb[1], 2) + Math.pow(b - color.rgb[2], 2));
-                    if (dist < minD) { minD = dist; closest = color; }
-                }
-
-                pixelArray.push(closest.char);
-
-                // Update preview canvas with exact matched color
-                data[idx] = closest.rgb[0]; data[idx+1] = closest.rgb[1]; data[idx+2] = closest.rgb[2]; data[idx+3] = 255;
-            }
-        }
-
-        ctx.putImageData(imgData, 0, 0);
-
-        // Smart RLE Compression
-        let compressedData = "";
-        let count = 1;
-        for (let i = 1; i <= pixelArray.length; i++) {
-            if (pixelArray[i] === pixelArray[i - 1]) {
-                count++;
-            } else {
-                compressedData += (count > 1 ? count : "") + pixelArray[i - 1];
-                count = 1; 
-            }
-        }
-
-        // Prepend the raw width so the in-game decoder knows when to wrap
-        const finalString = `${w}:${compressedData}`;
-
-        outputString.value = finalString;
-        const len = finalString.length;
-        charCount.innerText = `Length: ${len} chars`;
-        
-        if (len > 255) {
-            charCount.className = "warning";
-            limitWarning.style.display = "block";
-        } else {
-            charCount.className = "success";
-            limitWarning.style.display = "none";
-        }
-        
-        outputString.select();
-    }
-</script>
-
-</body>
-</html>
+        { char: 'A', name: 'Vomit', hex: '#7CB034', rgb: [124, 176, 52], sprite: placeholderBase64 },
+        { char: 'B', name: 'Vomit Alt', hex: '#B06734', rgb: [176, 103, 52], sprite: placeholderBase64 },
+        { char: 'C', name: 'Empty Can', hex: '#C2C2C2', rgb: [194, 194, 194], sprite: placeholderBase64 },
+        { char: 'D', name: 'Rubbish', hex: '#73685E', rgb: [115, 104, 94], sprite: placeholderBase64 },
+        { char: 'E', name: 'Burger Box', hex: '#D1A134', rgb: [209, 161, 52], sprite: placeholderBase64 },
+        { char: 'F', name: 'Empty Cup', hex: '#FFFFFF', rgb: [255, 255, 255], sprite: placeholderBase64 },
+        { char: 'G', name: 'Empty Box', hex: '#8F6844', rgb: [143, 104, 68], sprite: placeholderBase64 },
+        { char: 'H', name: 'Empty Bottle', hex: '#387A41', rgb: [56, 122, 65], sprite: placeholderBase64 },
+        { char: 'I', name: 'Bowl Red', hex: '#B83535', rgb: [184, 53, 53], sprite: placeholderBase64 },
+        { char: 'J', name: 'Drink Carton', hex: '#D67EC1', rgb: [214, 126, 193], sprite: placeholderBase64 },
+        { char: 'K', name: 'Juice Cup', hex: '#E07A26', rgb: [224, 122, 38], sprite: placeholderBase64 },
+        { char: 'L', name: 'Bowl Blue', hex: '#3D60B8',
