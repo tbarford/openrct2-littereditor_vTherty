@@ -9,15 +9,34 @@
         .box { background: #3c3c3c; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         h2, h3 { margin-top: 0; color: #fff; }
         
-        /* The Interactive Canvas */
-        .canvas-container { text-align: center; flex: 0 0 auto; }
-        canvas { 
-            border: 2px solid #555; 
-            image-rendering: pixelated; 
-            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOklEQVQYV2NkYGAwYkAD////Z4QxMIxKAy4tDKOagX/f/zMwMTAwMDIwMAw2xKjmwpEG2F0gWzTjDgB1/xL829/XmAAAAABJRU5ErkJggg=='); 
+        /* The Interactive Canvas & Mini Palette */
+        .workspace { display: flex; justify-content: center; align-items: flex-start; gap: 10px; margin-top: 10px; }
+        
+        .mini-palette { display: flex; flex-direction: column; gap: 4px; background: #222; padding: 6px; border-radius: 6px; border: 1px solid #555; }
+        .mini-swatch { width: 24px; height: 24px; border-radius: 4px; cursor: pointer; box-sizing: border-box; border: 2px solid transparent; transition: transform 0.1s; }
+        .mini-swatch:hover { transform: scale(1.1); }
+        .mini-swatch.selected { border-color: #fff; box-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        
+        .canvas-wrapper { 
+            position: relative; 
             width: 256px; /* Scaled visually 8x */
             height: 256px; 
-            cursor: crosshair;
+            border: 2px solid #555;
+            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAOklEQVQYV2NkYGAwYkAD////Z4QxMIxKAy4tDKOagX/f/zMwMTAwMDIwMAw2xKjmwpEG2F0gWzTjDgB1/xL829/XmAAAAABJRU5ErkJggg==');
+        }
+        #editorCanvas { 
+            width: 100%; height: 100%; 
+            display: block; 
+            image-rendering: pixelated; 
+            cursor: crosshair; 
+        }
+        .grid-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
+            pointer-events: none; /* Let clicks pass through to canvas */
+            background-size: calc(100% / 32) calc(100% / 32);
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.15) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
         }
         
         textarea { width: 100%; height: 100px; font-family: monospace; margin-top: 10px; background: #111; color: #0f0; padding: 10px; border: 1px solid #555; border-radius: 4px; resize: vertical; box-sizing: border-box; }
@@ -25,7 +44,7 @@
         .success { color: #51cf66; font-weight: bold; margin-top: 10px; }
         input[type="file"] { background: #222; padding: 10px; border-radius: 4px; width: 100%; box-sizing: border-box; cursor: pointer; margin-bottom: 10px; }
         
-        /* Palette Table & Tools */
+        /* Main Palette Table */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid #555; vertical-align: middle; }
         th { background: #222; }
@@ -36,7 +55,7 @@
         
         .chroma-controls { display: flex; align-items: center; gap: 10px; background: #222; padding: 10px; border-radius: 4px; margin-top: 10px; flex-wrap: wrap; }
         input[type="color"] { border: none; width: 40px; height: 40px; cursor: pointer; background: none; padding: 0; }
-        .btn-clear { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-clear { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; width: 100%; }
         .btn-clear:hover { background: #ff6b81; }
     </style>
 </head>
@@ -57,9 +76,18 @@
     </div>
 
     <div class="box" style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
-        <div class="canvas-container">
+        <div style="flex: 0 0 auto; text-align: center;">
             <p style="margin-top: 0; text-align: left;"><strong>2. Draw & Edit (32x32)</strong></p>
-            <canvas id="editorCanvas" width="32" height="32"></canvas><br>
+            
+            <div class="workspace">
+                <div class="mini-palette" id="miniPalette"></div>
+                
+                <div class="canvas-wrapper">
+                    <canvas id="editorCanvas" width="32" height="32"></canvas>
+                    <div class="grid-overlay"></div>
+                </div>
+            </div>
+            
             <button class="btn-clear" id="btnClear">🗑️ Clear Canvas</button>
         </div>
         
@@ -72,15 +100,11 @@
                 <span style="font-size: 0.9em; font-weight: normal;">Try using the Eraser tool to trim the edges or simplify your design.</span>
             </div>
             
-            <h3 style="margin-top: 20px;">Litter Tools</h3>
+            <h3 style="margin-top: 20px;">Litter Reference</h3>
             <p style="font-size: 0.8em; color: #ccc; margin-top: 0;">Click a row to select your brush.</p>
             <table>
                 <tbody id="paletteTableBody">
-                    <tr class="tool-row" data-id="eraser">
-                        <td><div class="color-swatch" style="background: repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 10px 10px;"></div></td>
-                        <td colspan="3">Eraser (Transparent)</td>
-                    </tr>
-                </tbody>
+                    </tbody>
             </table>
         </div>
     </div>
@@ -103,38 +127,71 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 11, char: 'L', name: 'Bowl Blue', hex: '#3D60B8', rgb: [61, 96, 184] }
     ];
 
-    // --- TOOL & PALETTE SETUP ---
-    let activeTool = PALETTE[0]; // Default to Vomit
+    let activeTool = PALETTE[0]; 
     const tbody = document.getElementById('paletteTableBody');
+    const miniPalette = document.getElementById('miniPalette');
     
+    // Central function to update UI when a tool is selected
+    function selectTool(tool) {
+        activeTool = tool;
+        
+        // Update Table Rows
+        document.querySelectorAll('.tool-row').forEach(row => {
+            row.classList.toggle('selected', row.dataset.id === (tool === 'eraser' ? 'eraser' : tool.id.toString()));
+        });
+        
+        // Update Mini Swatches
+        document.querySelectorAll('.mini-swatch').forEach(swatch => {
+            swatch.classList.toggle('selected', swatch.dataset.id === (tool === 'eraser' ? 'eraser' : tool.id.toString()));
+        });
+    }
+
+    // Build the Eraser
+    const eraserStyle = 'background: repeating-conic-gradient(#808080 0% 25%, #333 0% 50%) 50% / 10px 10px;';
+    
+    // 1. Add Eraser to Table
+    const trEraser = document.createElement('tr');
+    trEraser.className = 'tool-row';
+    trEraser.dataset.id = 'eraser';
+    trEraser.innerHTML = `<td><div class="color-swatch" style="${eraserStyle}"></div></td><td colspan="2">Eraser (Transparent)</td>`;
+    trEraser.addEventListener('click', () => selectTool('eraser'));
+    tbody.appendChild(trEraser);
+
+    // 2. Add Eraser to Mini Palette
+    const miniEraser = document.createElement('div');
+    miniEraser.className = 'mini-swatch';
+    miniEraser.dataset.id = 'eraser';
+    miniEraser.style.cssText = eraserStyle;
+    miniEraser.title = "Eraser";
+    miniEraser.addEventListener('click', () => selectTool('eraser'));
+    miniPalette.appendChild(miniEraser);
+
+    // Build the Colors
     PALETTE.forEach(p => {
+        // Table Row
         const tr = document.createElement('tr');
         tr.className = 'tool-row';
         tr.dataset.id = p.id;
-        if (p.id === 0) tr.classList.add('selected'); // Highlight default
-        
         tr.innerHTML = `
             <td><div class="color-swatch" style="background-color: ${p.hex};"></div></td>
             <td>${p.name}</td>
             <td style="font-family: monospace; font-size: 0.8em;">${p.hex}</td>
         `;
-        
-        tr.addEventListener('click', () => {
-            document.querySelectorAll('.tool-row').forEach(row => row.classList.remove('selected'));
-            tr.classList.add('selected');
-            activeTool = p;
-        });
-        
+        tr.addEventListener('click', () => selectTool(p));
         tbody.appendChild(tr);
+
+        // Mini Swatch
+        const miniSwatch = document.createElement('div');
+        miniSwatch.className = 'mini-swatch';
+        miniSwatch.dataset.id = p.id;
+        miniSwatch.style.backgroundColor = p.hex;
+        miniSwatch.title = p.name;
+        miniSwatch.addEventListener('click', () => selectTool(p));
+        miniPalette.appendChild(miniSwatch);
     });
 
-    // Eraser setup
-    const eraserRow = document.querySelector('[data-id="eraser"]');
-    eraserRow.addEventListener('click', () => {
-        document.querySelectorAll('.tool-row').forEach(row => row.classList.remove('selected'));
-        eraserRow.classList.add('selected');
-        activeTool = 'eraser';
-    });
+    // Set initial tool
+    selectTool(PALETTE[0]);
 
 
     // --- CANVAS INTERACTION ---
@@ -142,12 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     let isDrawing = false;
 
-    // Draw a single pixel based on the active tool
     function drawPixel(e) {
         if (!isDrawing) return;
         const rect = canvas.getBoundingClientRect();
         
-        // Calculate mouse position relative to the visually scaled 256px canvas, mapped back to 32px grid
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
         const x = Math.floor((e.clientX - rect.left) * scaleX);
@@ -166,8 +221,23 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousedown', (e) => { isDrawing = true; drawPixel(e); });
     canvas.addEventListener('mousemove', drawPixel);
     window.addEventListener('mouseup', () => { 
-        if(isDrawing) { isDrawing = false; generateRLE(); } // Only update string when mouse is released
+        if(isDrawing) { isDrawing = false; generateRLE(); } 
     });
+    
+    // Support touch devices
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        isDrawing = true; 
+        drawPixel(e.touches[0]); 
+    }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        drawPixel(e.touches[0]); 
+    }, {passive: false});
+    window.addEventListener('touchend', () => { 
+        if(isDrawing) { isDrawing = false; generateRLE(); } 
+    });
+
 
     // Clear Canvas Button
     document.getElementById('btnClear').addEventListener('click', () => {
@@ -191,19 +261,14 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onload = function(event) {
             const img = new Image();
             img.onload = function() {
-                // Clear the 32x32 canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Calculate centered offsets
                 const w = Math.min(img.width, 32);
                 const h = Math.min(img.height, 32);
                 const offsetX = Math.floor((32 - w) / 2);
                 const offsetY = Math.floor((32 - h) / 2);
 
-                // Draw image centered
                 ctx.drawImage(img, 0, 0, w, h, offsetX, offsetY, w, h);
-                
-                // Process Chroma Key and map to palette
                 applyPaletteToCanvas();
                 generateRLE();
             }
@@ -226,13 +291,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const idx = i * 4;
             const r = data[idx], g = data[idx+1], b = data[idx+2], a = data[idx+3];
 
-            // Ignore already empty pixels
             if (a === 0) continue;
 
             const distToChroma = Math.sqrt(Math.pow(r - chromaR, 2) + Math.pow(g - chromaG, 2) + Math.pow(b - chromaB, 2));
 
             if (a < 128 || (useChroma && distToChroma < 25)) {
-                data[idx] = 0; data[idx+1] = 0; data[idx+2] = 0; data[idx+3] = 0; // Erase
+                data[idx] = 0; data[idx+1] = 0; data[idx+2] = 0; data[idx+3] = 0; 
             } else {
                 let closest = PALETTE[0];
                 let minD = Infinity;
@@ -256,7 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgData = ctx.getImageData(0, 0, 32, 32);
         const data = imgData.data;
         
-        // 1. Find Bounding Box (Auto-Crop)
         let minX = 32, maxX = -1, minY = 32, maxY = -1;
         let chars2D = [];
 
@@ -270,12 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     row.push('X');
                 } else {
                     const r = data[idx], g = data[idx+1], b = data[idx+2];
-                    // Find the matching palette character
                     const matchedColor = PALETTE.find(p => p.rgb[0] === r && p.rgb[1] === g && p.rgb[2] === b);
-                    const char = matchedColor ? matchedColor.char : 'A'; // Fallback just in case
+                    const char = matchedColor ? matchedColor.char : 'A';
                     row.push(char);
 
-                    // Update bounds
                     if (x < minX) minX = x;
                     if (x > maxX) maxX = x;
                     if (y < minY) minY = y;
@@ -285,7 +346,6 @@ document.addEventListener('DOMContentLoaded', () => {
             chars2D.push(row);
         }
 
-        // If canvas is totally empty
         if (maxX === -1) {
             outputString.value = "";
             charCount.innerText = "Length: 0 chars";
@@ -293,7 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 2. Flatten bounded area into 1D array
         const croppedW = maxX - minX + 1;
         let pixelArray = [];
         for (let y = minY; y <= maxY; y++) {
@@ -302,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 3. Smart RLE Compression
         let compressedData = "";
         let count = 1;
         for (let i = 1; i <= pixelArray.length; i++) {
@@ -314,7 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 4. Output
         const finalString = `${croppedW}:${compressedData}`;
         outputString.value = finalString;
         
